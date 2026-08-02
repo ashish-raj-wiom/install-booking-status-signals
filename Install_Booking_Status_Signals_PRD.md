@@ -98,6 +98,8 @@ Three in total on these paths. Two are new; one already runs today and is listed
 
 ### 3a. System flow chart
 
+**Dispatch order lives here.** The chart governs check order and routing for a single trigger; the precedence rules below govern simultaneous triggers. §3b owns each guard's content and every To state.
+
 ```mermaid
 flowchart TD
     A["Install task ends without an install — declined by CSP, P41 timeout, reported failed by CSP, or P74 timeout"] --> B{"Was a CSP assigned to this booking?"}
@@ -298,7 +300,7 @@ What the platform must be able to do for this feature to exist. Whether these ar
 
 ## Overrides
 
-| Rule | What was done instead | Rationale | Approved by |
+| Rule overridden | What was done instead | Rationale | Approved by |
 |---|---|---|---|
 | §4 requires one block per screen | §4 states "no screens" with reasoning | The feature is a backend-to-backend signal contract with no Wiom-side UI | Ashish Raj, 27 Jul 2026 |
 | §5 requires every changeable number as a C-id | §5 states there are none | This spec has no tunables. Latency is engineering's to set, the one-closure limit is an invariant (R2b), P41/P74/P75 are existing parameters this spec only observes, and the 14-day fallback belongs to the customer backend | Ashish Raj, 27 Jul 2026 |
@@ -308,3 +310,7 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | Template v3 has no summary section | An **At a glance** block sits between the header and §1 | Readers outside the install pod need the shape of the change before the rules. It restates §1/§2 only and adds no obligation, so §1 remains the objective's one home | Ashish Raj, 27 Jul 2026 |
 | Template v3 §1 holds Objective, Boundary, Guardrails and Metrics only | A **signals** table sits in §1 after the Boundary | The deliverable of this spec is the signals. Without one place naming them, when each fires, what each carries and which already exist, a reader has to assemble it from §1, §2, §3b and §8 | Ashish Raj, 27 Jul 2026 |
 | This spec states what and why, not mechanism | P41, P74, P75, P78 and P50 are named in §1, §2, §3b, §5, §7 and §8 | The four cancellation triggers and the P75 closure are the PM's own definition of scope. Naming them removes the ambiguity a paraphrase would leave, and parameter names stay stable where their values do not | Ashish Raj, 27 Jul 2026 |
+
+---
+
+**Status: Draft.** Every review item is resolved; not yet signed off. This Markdown is the canonical artefact; the published page renders it. Derived artefacts reference this PRD and never override it — if one disagrees, this document wins and the artefact is regenerated.

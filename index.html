@@ -135,24 +135,23 @@
 <main>
 
 <header class="doc">
-  <div class="eyebrow">Wiom &middot; PRD &middot; Template v3 &middot; PM deliverable</div>
-  <h1>Install Booking Status Signals</h1>
+  <h1>Install Booking Status Signals &mdash; task cancellation and closure</h1>
   <p class="lede">Task cancellation and closure signals from the CSP world to the customer backend, so a customer waiting for an installation always knows whether it is still coming.</p>
   <div class="meta-row">
-    <div><strong>Owner</strong> &middot; Ashish Raj (PM)</div>
-    <div><strong>Reviewer</strong> &middot; Engineering Manager</div>
-    <div><strong>Version</strong> &middot; v0.2 &middot; 27 Jul 2026</div>
-    <div><strong>Status</strong> &middot; Draft</div>
-    <div><strong>Sign-off</strong> &middot; Pending</div>
+    <div><strong>Owner</strong> &mdash; Ashish Raj (PM)</div>
+    <div><strong>Reviewer</strong> &mdash; Engineering Manager</div>
+    <div><strong>Version</strong> &mdash; v0.2 &middot; 27 Jul 2026</div>
+    <div><strong>Status</strong> &mdash; Draft</div>
+    <div><strong>Sign-off</strong> &mdash; Pending</div>
   </div>
   <div class="meta-row">
-    <div><strong>Consulted &mdash; Customer Backend</strong> &middot; Shail</div>
-    <div><strong>Consulted &mdash; Install Flow</strong> &middot; Ashish Raj</div>
-    <div><strong>Consulted &mdash; Allocation</strong> &middot; Ashish Raj</div>
+    <div><strong>Consulted &mdash; Customer Backend</strong> &mdash; Shail</div>
+    <div><strong>Consulted &mdash; Install Flow</strong> &mdash; Ashish Raj</div>
+    <div><strong>Consulted &mdash; Allocation</strong> &mdash; Ashish Raj</div>
   </div>
   <div class="convention">
     <strong>Reading contract.</strong> &sect;3b is canon &mdash; if any statement disagrees with it, &sect;3b wins, except dispatch order, which the &sect;3a chart and its precedence rules own. Every fact has one home; every other mention is an ID reference. Failure behaviour is an envelope: the customer-facing outcome guaranteed when recovery runs out, independent of how recovery is attempted. This document states <em>what and why</em>; decomposition, schema, storage, retries, latency budgets and instrumentation belong to the implementer.
-    <span class="badge req">Draft</span> Every review item is resolved. Awaiting reviewer sign-off.
+    <strong>Status.</strong> Draft. Every review item is resolved. Awaiting reviewer sign-off.
   </div>
 </header>
 
@@ -172,7 +171,7 @@
 </div>
 
 <section class="spec" id="s1">
-  <h2><span class="num">1.</span> Objective &amp; Definition of Success <span class="tier what">WHAT</span></h2>
+  <h2><span class="num">1.</span> Objective &amp; Definition of Success</h2>
 
   <p><strong>Objective.</strong> A customer waiting for an installation always knows where their booking stands &mdash; whether the assigned CSP is still coming, and whether the booking can still be installed at all.</p>
 
@@ -224,7 +223,7 @@
 </section>
 
 <section class="spec" id="s2">
-  <h2><span class="num">2.</span> User Stories &amp; Rules <span class="tier what">WHAT</span></h2>
+  <h2><span class="num">2.</span> User Stories &amp; Rules</h2>
   <table>
     <tr><th>ID</th><th>Story</th><th>MUST</th><th>MUST NOT</th></tr>
     <tr><td>R1</td><td>As a customer whose assigned CSP is no longer coming, I want that fact sent to the customer backend, so my booking status stops showing someone who will not arrive.</td><td><strong>(a)</strong> Send a task cancellation signal every time an assigned install task is cancelled, by any of the four triggers: declined by CSP, P41 timeout, installation reported failed by CSP, P74 timeout. <strong>(b)</strong> Send it immediately, once the cancellation is settled.</td><td><strong>(a)</strong> Hold back or merge the signal because a replacement CSP was found in the same moment. <strong>(b)</strong> Send a task cancellation signal when the customer cancelled their own booking &mdash; that event travels the other way.</td></tr>
@@ -238,10 +237,10 @@
 </section>
 
 <section class="spec" id="s3">
-  <h2><span class="num">3.</span> System Behaviour <span class="tier what">WHAT</span></h2>
+  <h2><span class="num">3.</span> System Behaviour</h2>
 
   <h3>3a. System flow chart</h3>
-  <div class="expected"><strong>Dispatch order lives here.</strong> The chart governs check order and routing for a single trigger; the precedence rules below govern simultaneous triggers. &sect;3b owns each guard's content and every To state.</div>
+  <p><strong>Dispatch order lives here.</strong> The chart governs check order and routing for a single trigger; the precedence rules below govern simultaneous triggers. &sect;3b owns each guard's content and every To state.</p>
 
   <div class="mermaid">
 flowchart TD
@@ -291,19 +290,19 @@ flowchart TD
 </section>
 
 <section class="spec" id="s4">
-  <h2><span class="num">4.</span> Screen Requirements <span class="tier how">HOW</span></h2>
+  <h2><span class="num">4.</span> Screen Requirements</h2>
   <p><strong>No screens.</strong> This spec defines signals between the CSP world and the customer backend. Nothing the customer sees is built here &mdash; the customer team owns every screen driven by these signals, specified separately. No Wiom-side CSP or operations screen changes.</p>
   <hr class="sect-end">
 </section>
 
 <section class="spec" id="s5">
-  <h2><span class="num">5.</span> Configurability <span class="tier how">HOW</span></h2>
+  <h2><span class="num">5.</span> Configurability</h2>
   <p><strong>No configurable parameters.</strong> This spec introduces no tunable numbers. Both new signals go out immediately; any latency budget is engineering's to set and change, not a product parameter. The one-closure-per-booking limit is an invariant, not a setting (R2b). P41, P74 and P75 are existing CSP-world parameters this spec observes but never changes (R6, G4). The customer backend's 14-day fallback timer is named in R5 and &sect;8 as an external fact &mdash; the customer team owns it.</p>
   <hr class="sect-end">
 </section>
 
 <section class="spec" id="s6">
-  <h2><span class="num">6.</span> Measurement <span class="tier how">HOW</span></h2>
+  <h2><span class="num">6.</span> Measurement</h2>
   <table>
     <tr><th>ID</th><th>The system must be able to answer&hellip;</th><th>Feeds</th></tr>
     <tr><td>MQ-1</td><td>Of all install tasks cancelled by the four triggers, how many sent a task cancellation signal &mdash; split by trigger.</td><td>M1 &middot; G1 &middot; G3 &middot; R1a</td></tr>
@@ -318,7 +317,7 @@ flowchart TD
 </section>
 
 <section class="spec" id="s7">
-  <h2><span class="num">7.</span> Acceptance Criteria <span class="tier how">HOW</span></h2>
+  <h2><span class="num">7.</span> Acceptance Criteria</h2>
 
   <h3>CAN &mdash; Task cancellation signal (T1, T2)</h3>
   <table>
@@ -399,7 +398,7 @@ flowchart TD
 </section>
 
 <section class="spec" id="s8">
-  <h2><span class="num">8.</span> Glossary <span class="tier what">WHAT</span></h2>
+  <h2><span class="num">8.</span> Glossary</h2>
   <table>
     <tr><th>Term</th><th>Meaning</th><th>Owner (domain)</th></tr>
     <tr><td>Task cancellation</td><td><strong>Canonical definition:</strong> an assigned install task ending inside the CSP world without an installation, by one of exactly four triggers &mdash; declined by CSP, P41 timeout, installation reported failed by CSP, P74 timeout. Always the CSP world's own doing. Distinct from a customer cancelling their booking, which this document never calls a cancellation. All other mentions cite this definition.</td><td>Install Flow</td></tr>
@@ -426,7 +425,7 @@ flowchart TD
 </section>
 
 <section class="spec" id="s9">
-  <h2><span class="num">9.</span> Notes for System Capabilities <span class="tier how">HOW</span></h2>
+  <h2><span class="num">9.</span> Notes for System Capabilities</h2>
   <p>What the platform must be able to do for this feature to exist. Whether these are one system or several, and how they interact, is the implementer's design.</p>
   <table>
     <tr><th>Capability</th><th>Needed by</th></tr>
@@ -458,7 +457,7 @@ flowchart TD
   </table>
 
   <div class="note" style="margin-top:24px; padding:14px; background:var(--bg); border-left:3px solid var(--ink); font-size:13px;">
-    <strong>Status: Draft.</strong> Every review item is resolved; not yet signed off. The source Markdown is the canonical artefact; this page renders it. Derived artefacts reference this PRD and never override it &mdash; if one disagrees, this document wins and the artefact is regenerated.
+    <strong>Status: Draft.</strong> Every review item is resolved; not yet signed off. This Markdown is the canonical artefact; the published page renders it. Derived artefacts reference this PRD and never override it &mdash; if one disagrees, this document wins and the artefact is regenerated.
   </div>
 </footer>
 
