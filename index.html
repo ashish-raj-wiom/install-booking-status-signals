@@ -128,7 +128,6 @@
   <ol>
     <li><a href="#s8"><span class="ix">8</span> Glossary</a></li>
     <li><a href="#s9"><span class="ix">9</span> Capabilities</a></li>
-    <li><a href="#review"><span class="ix">&mdash;</span> Open for review</a></li>
     <li><a href="#overrides"><span class="ix">&mdash;</span> Overrides</a></li>
   </ol>
 </nav>
@@ -153,66 +152,68 @@
   </div>
   <div class="convention">
     <strong>Reading contract.</strong> &sect;3b is canon &mdash; if any statement disagrees with it, &sect;3b wins, except dispatch order, which the &sect;3a chart and its precedence rules own. Every fact has one home; every other mention is an ID reference. Failure behaviour is an envelope: the customer-facing outcome guaranteed when recovery runs out, independent of how recovery is attempted. This document states <em>what and why</em>; decomposition, schema, storage, retries, latency budgets and instrumentation belong to the implementer.
-    <span class="badge req">Draft</span> Three items are marked for review and need the PM's decision before sign-off &mdash; see the review section at the end.
+    <span class="badge req">Draft</span> Every review item is resolved. Awaiting reviewer sign-off.
   </div>
 </header>
 
 <div class="quickcheck" id="summary">
   <h2>At a glance</h2>
-  <div class="qc-tag">Two new signals. One existing behaviour confirmed and protected by regression.</div>
+  <div class="qc-tag">Two new signals, one existing closure confirmed, and one existing behaviour protected by regression.</div>
   <dl>
     <dt>Problem</dt><dd>When an install task is cancelled or the CSP world gives up, the customer backend is told nothing. It finds out only when its own fallback timer fires.</dd>
-    <dt>Signal 1</dt><dd><strong>Task cancellation</strong> &mdash; sent every time an assigned install task is cancelled inside the CSP world, even when a replacement partner is found in the same instant.</dd>
-    <dt>Signal 2</dt><dd><strong>Closure</strong> &mdash; sent once per booking when the CSP world permanently stops trying. Covers both stopping paths: partners tried and failed, and no partner findable.</dd>
+    <dt>Signal 1 &mdash; new</dt><dd><strong>Task cancellation</strong> &mdash; sent every time an assigned install task is cancelled inside the CSP world, by any of four named triggers, even when a replacement CSP is found in the same instant.</dd>
+    <dt>Signal 2 &mdash; new</dt><dd><strong>Closure, CSP world exhausted</strong> &mdash; sent once per booking when every attempt to find a CSP is used up and no install task is active.</dd>
+    <dt>Already live</dt><dd><strong>Closure, connection deactivated</strong> &mdash; the P75 signal sent when CLOS moves the connection to DEACTIVATED. Listed so the closure picture is complete; no work in this spec.</dd>
     <dt>Read this first</dt><dd>&ldquo;Cancellation&rdquo; here always means an <strong>install task</strong> being cancelled by the CSP world &mdash; never a customer cancelling their booking. That is a different event travelling the other way, and it is out of scope (&sect;8).</dd>
     <dt>Not in scope</dt><dd>Technician reassignment already re-sends the technician's details on every change. No work needed &mdash; protected by AC-REG-2.</dd>
     <dt>Delivery</dt><dd>Best effort, matching the existing signals on this channel. The customer backend's fallback timer therefore stays as the required backstop (R5).</dd>
-    <dt>Owned elsewhere</dt><dd>What the customer backend does with either signal &mdash; refunds, messages, app screens &mdash; is the customer team's, specified separately.</dd>
+    <dt>Owned elsewhere</dt><dd>What the customer backend does with any signal &mdash; refunds, messages, app screens &mdash; is the customer team's, specified separately.</dd>
   </dl>
 </div>
 
 <section class="spec" id="s1">
   <h2><span class="num">1.</span> Objective &amp; Definition of Success <span class="tier what">WHAT</span></h2>
 
-  <p><strong>Objective.</strong> A customer waiting for an installation always knows where their booking stands &mdash; whether the assigned partner is still coming, and whether the booking can still be installed at all.</p>
+  <p><strong>Objective.</strong> A customer waiting for an installation always knows where their booking stands &mdash; whether the assigned CSP is still coming, and whether the booking can still be installed at all.</p>
 
-  <p><strong>Boundary.</strong> This spec governs two signals sent from the CSP world to the customer backend: one when an assigned <strong>install task</strong> is cancelled, and one when the CSP world permanently stops trying to install a booking.</p>
+  <p><strong>Boundary.</strong> This spec governs signals sent from the CSP world to the customer backend when an assigned <strong>install task</strong> is cancelled, and when the CSP world permanently stops trying to install a booking.</p>
 
-  <div class="hint"><strong>Task cancellation, not booking cancellation.</strong> Every "cancellation" in this document means an <strong>install task</strong> being cancelled inside the CSP world &mdash; the assigned partner drops the job, or a CSP-side timer takes it off them. A customer cancelling their own booking is a different event travelling the other way: the customer backend originates it and tells us. It needs no signal back and is out of scope (&sect;8).</div>
+  <div class="hint"><strong>Task cancellation, not booking cancellation.</strong> Every "cancellation" in this document means an <strong>install task</strong> being cancelled inside the CSP world &mdash; the assigned CSP drops the job, or a CSP-side timer takes it off them. A customer cancelling their own booking is a different event travelling the other way: the customer backend originates it and tells us. It needs no signal back and is out of scope (&sect;8).</div>
 
   <p>It leaves unchanged:</p>
   <ul>
-    <li>The six install signals sent today &mdash; slot proposal, slot assignment, partner arrived, ID verified, wiring done, account creation (AC-REG-1).</li>
-    <li>Technician reassignment. A partner who changes the assigned technician already re-sends the technician's name and mobile on every change. No work here (AC-REG-2).</li>
-    <li>The request-expiry signal sent today when a booking dies before any partner is assigned (AC-REG-3).</li>
+    <li>The six install signals sent today &mdash; slot proposal, slot assignment, CSP arrived, ID verified, wiring done, account creation (AC-REG-1).</li>
+    <li>Technician reassignment. A CSP who changes the assigned technician already re-sends the technician's name and mobile on every change. No work here (AC-REG-2).</li>
+    <li>The P75 closure signal sent today when CLOS moves the connection to DEACTIVATED (AC-REG-3, T7).</li>
     <li>Customer-initiated booking cancellation, in both directions (AC-REG-4).</li>
-    <li>Every other CSP-world behaviour on the cancellation and closure paths &mdash; when a task is cancelled, when the CSP world stops trying, how many attempts a booking gets (R6, G6).</li>
+    <li>Every other CSP-world behaviour on the cancellation and closure paths &mdash; when a task is cancelled, when the CSP world stops trying, how many attempts a booking gets (R6, G4).</li>
     <li>What the customer backend does with any signal &mdash; refunds, messages, app screens. That work is owned by the customer team and specified separately.</li>
   </ul>
 
   <p>Out of scope: a device returned to the warehouse after installation; the defect where a failed technician lookup sends an empty name and mobile.</p>
 
-  <h3>The signals this spec adds</h3>
-  <p>Two, and only two. Everything else on this channel is unchanged.</p>
+  <h3>The signals</h3>
+  <p>Three in total on these paths. Two are new; one already runs today and is listed so the closure picture is complete.</p>
   <table>
-    <tr><th>Signal</th><th>Sent when</th><th>Carries</th><th>How often</th></tr>
-    <tr><td><strong>Task cancellation</strong></td><td>An assigned install task is cancelled inside the CSP world &mdash; the partner declines, the partner reports the installation failed, the acceptance window expires, or the install window expires (T1)</td><td>Who acted (the partner, or a CSP-side timeout) &middot; the cause &middot; which partner the task was taken from &middot; whether further attempts will be made (R3)</td><td>Every time, even when a replacement is found in the same instant (G1). Repeats across successive partners are expected and correct</td></tr>
-    <tr><td><strong>Closure</strong></td><td>The CSP world permanently stops trying &mdash; partners tried and failed, or no partner could be found at all (T3, T4)</td><td>The reason the CSP world stopped (R2a)</td><td>At most once per booking, keyed on the booking's customer id (R2b)</td></tr>
+    <tr><th>Signal</th><th>Sent when</th><th>Carries</th><th>How often</th><th>Build</th></tr>
+    <tr><td><strong>Task cancellation</strong></td><td>An assigned install task is cancelled inside the CSP world, by one of four triggers &mdash; <strong>declined by CSP</strong> &middot; <strong>P41 timeout</strong> (the CSP never accepted) &middot; <strong>installation reported failed by CSP</strong> &middot; <strong>P74 timeout</strong> (the install window elapsed) &mdash; T1</td><td>Which of the four triggers fired &middot; whether a CSP acted or a CSP-side timer did &middot; which CSP the task was taken from &middot; whether further attempts will be made (R3)</td><td>Every time, even when a replacement CSP is found in the same instant (G1). Repeats across successive CSPs are expected and correct</td><td><strong>New</strong></td></tr>
+    <tr><td><strong>Closure &mdash; CSP world exhausted</strong></td><td>Every attempt to find a CSP is used up <strong>and</strong> no install task is active. The CSP world permanently stops trying (T3, T4)</td><td>The reason the CSP world stopped &mdash; attempts used up after CSPs tried and failed, or no CSP findable at all (R2a)</td><td>At most once per booking, keyed on the booking's customer id (R2b)</td><td><strong>New</strong></td></tr>
+    <tr><td><strong>Closure &mdash; connection deactivated (P75)</strong></td><td>CLOS moves the connection to DEACTIVATED on request expiry (T7)</td><td>Unchanged from today</td><td>Once per booking</td><td><strong>Live today</strong> &mdash; no work in this spec (AC-REG-3)</td></tr>
   </table>
 
   <h3>Guardrails &mdash; promises that hold on every path</h3>
   <table>
     <tr><th>ID</th><th>Guardrail</th><th>One line</th><th>Anchors</th></tr>
-    <tr><td>G1</td><td><strong>Every task cancellation speaks</strong></td><td>Every task cancellation on a live booking sends a signal, whether or not a replacement partner is found. Once a booking is closed, nothing further is sent (P2). A customer cancelling their own booking is not a task cancellation and sends nothing (R1 MUST NOT (b)).</td><td>R1a &middot; AC-CAN-1 &middot; AC-CAN-4 &middot; MQ-1</td></tr>
-    <tr><td>G3</td><td><strong>No silent giving up</strong></td><td>Every way the CSP world can permanently stop trying sends a closure signal &mdash; whichever way happens first. A booking already closed sends nothing further (P2, R2b).</td><td>R4 &middot; AC-TRM-3 &middot; MQ-2</td></tr>
-    <tr><td>G5</td><td><strong>Always attributed</strong></td><td>Every signal says who caused it and why, without the reader having to infer it.</td><td>R3 &middot; AC-GRD-1 &middot; MQ-5</td></tr>
-    <tr><td>G6</td><td><strong>Nothing existing breaks</strong></td><td>This change adds signals and nothing else. Every CSP-world behaviour around task cancellation and closure works exactly as it does today &mdash; same triggers, same attempt counts, same reallocation, same timing.</td><td>R6 &middot; AC-REG-1 &middot; AC-REG-2 &middot; AC-REG-3 &middot; AC-REG-4 &middot; AC-GRD-3 &middot; MQ-6</td></tr>
+    <tr><td>G1</td><td><strong>Every task cancellation speaks</strong></td><td>Every task cancellation on a live booking sends a signal, whether or not a replacement CSP is found. Once a booking is closed, nothing further is sent (P2). A customer cancelling their own booking is not a task cancellation and sends nothing (R1 MUST NOT (b)).</td><td>R1a &middot; AC-CAN-1 &middot; AC-CAN-4 &middot; MQ-1</td></tr>
+    <tr><td>G2</td><td><strong>No silent giving up</strong></td><td>Every way the CSP world can permanently stop trying reaches the customer backend &mdash; the new exhaustion closure, or the P75 deactivation closure that already runs. Whichever happens first. A booking already closed sends nothing further (P2, R2b).</td><td>R4 &middot; AC-TRM-3 &middot; MQ-2</td></tr>
+    <tr><td>G3</td><td><strong>Always attributed</strong></td><td>Every signal says who caused it and why, without the reader having to infer it. For a task cancellation that means naming which of the four triggers fired.</td><td>R3 &middot; AC-GRD-1 &middot; MQ-5</td></tr>
+    <tr><td>G4</td><td><strong>Nothing existing breaks</strong></td><td>This change adds signals and nothing else. Every CSP-world behaviour around task cancellation and closure works exactly as it does today &mdash; same triggers, same attempt counts, same reallocation, same timing, same P75 closure.</td><td>R6 &middot; AC-REG-1 &middot; AC-REG-2 &middot; AC-REG-3 &middot; AC-REG-4 &middot; AC-GRD-3 &middot; MQ-6</td></tr>
   </table>
 
   <h3>Success metrics</h3>
   <table>
     <tr><th>ID</th><th>Metric</th><th>Baseline</th><th>Target</th><th>Source</th></tr>
-    <tr><td>M1</td><td>Task cancellations and closures that sent a signal</td><td>n/a &mdash; new capability</td><td>&ge; 99%</td><td>MQ-1, MQ-2</td></tr>
+    <tr><td>M1</td><td>Task cancellations and exhaustion closures that sent a signal</td><td>n/a &mdash; new capability</td><td>&ge; 99%</td><td>MQ-1, MQ-2</td></tr>
     <tr><td>M2</td><td>Customer calls asking for install status</td><td>none today &mdash; no call-reason data exists</td><td>Reduction</td><td>MQ-4</td></tr>
   </table>
 
@@ -226,12 +227,12 @@
   <h2><span class="num">2.</span> User Stories &amp; Rules <span class="tier what">WHAT</span></h2>
   <table>
     <tr><th>ID</th><th>Story</th><th>MUST</th><th>MUST NOT</th></tr>
-    <tr><td>R1</td><td>As a customer whose assigned partner is no longer coming, I want that fact sent to the customer backend, so my booking status stops showing someone who will not arrive.</td><td><strong>(a)</strong> Send a task cancellation signal every time an assigned install task is cancelled &mdash; by partner choice or by a CSP-side timeout. <strong>(b)</strong> Send it immediately, once the cancellation is settled.</td><td><strong>(a)</strong> Hold back or merge the signal because a replacement partner was found in the same moment. <strong>(b)</strong> Send a task cancellation signal when the customer cancelled their own booking &mdash; that event travels the other way.</td></tr>
-    <tr><td>R2</td><td>As a customer whose booking can no longer be installed, I want the customer backend told for certain, so it can close the booking and start a refund.</td><td><strong>(a)</strong> Send a closure signal immediately when the CSP world permanently stops trying, carrying the reason it stopped. <strong>(b)</strong> Send at most one closure signal per booking, keyed on the booking's customer id.</td><td><strong>(a)</strong> Leave the customer backend to work this out from its fallback timer. <strong>(b)</strong> Send a closure signal while further attempts are still possible.</td></tr>
-    <tr><td>R3</td><td>As the customer backend, I need to tell these cases apart without guessing, so I can act differently on each.</td><td>Carry on every signal: who acted (the partner, or a CSP-side timeout); the cause; which partner the task was taken from; and whether further attempts will be made.</td><td>Require the reader to infer any of these from timing, ordering, or the absence of a later signal.</td></tr>
-    <tr><td>R4</td><td>As a customer, I want the same answer whichever way the CSP world ran out of options, so no dead booking stays silent.</td><td>Send a closure signal on <strong>every</strong> path where the CSP world permanently stops trying &mdash; both when partners tried and failed, and when no partner could be found at all.</td><td>Cover only the common path and leave the others silent.</td></tr>
+    <tr><td>R1</td><td>As a customer whose assigned CSP is no longer coming, I want that fact sent to the customer backend, so my booking status stops showing someone who will not arrive.</td><td><strong>(a)</strong> Send a task cancellation signal every time an assigned install task is cancelled, by any of the four triggers: declined by CSP, P41 timeout, installation reported failed by CSP, P74 timeout. <strong>(b)</strong> Send it immediately, once the cancellation is settled.</td><td><strong>(a)</strong> Hold back or merge the signal because a replacement CSP was found in the same moment. <strong>(b)</strong> Send a task cancellation signal when the customer cancelled their own booking &mdash; that event travels the other way.</td></tr>
+    <tr><td>R2</td><td>As a customer whose booking can no longer be installed, I want the customer backend told for certain, so it can close the booking and start a refund.</td><td><strong>(a)</strong> Send an exhaustion closure signal immediately when every attempt to find a CSP is used up and no install task is active, carrying the reason it stopped. <strong>(b)</strong> Send at most one closure signal per booking, keyed on the booking's customer id. <strong>(c)</strong> Leave the existing P75 deactivation closure exactly as it runs today.</td><td><strong>(a)</strong> Leave the customer backend to work this out from its fallback timer. <strong>(b)</strong> Send an exhaustion closure while any attempt remains, or while any install task is still active.</td></tr>
+    <tr><td>R3</td><td>As the customer backend, I need to tell these cases apart without guessing, so I can act differently on each.</td><td>Carry on every signal: which trigger fired; whether a CSP acted or a CSP-side timer did; which CSP the task was taken from; and whether further attempts will be made.</td><td>Require the reader to infer any of these from timing, ordering, or the absence of a later signal.</td></tr>
+    <tr><td>R4</td><td>As a customer, I want the same answer whichever way the CSP world ran out of options, so no dead booking stays silent.</td><td>Cover <strong>every</strong> path on which the CSP world permanently stops trying &mdash; CSPs tried and failed, no CSP findable at all, and connection deactivation (P75).</td><td>Cover only the common path and leave the others silent.</td></tr>
     <tr><td>R5</td><td>As the business, I want a backstop, because these signals can be lost in transit.</td><td>Keep the customer backend's existing 14-day fallback timer running.</td><td>Treat the timer as the primary path, or remove it once these signals ship.</td></tr>
-    <tr><td>R6</td><td>As the install pod, I want this change to add observation only, so shipping it cannot make installations worse.</td><td>Leave every existing CSP-world behaviour on the cancellation and closure paths exactly as it is &mdash; the triggers, the number of attempts a booking gets, reallocation, and the timing of each.</td><td><strong>(a)</strong> Change when a task is cancelled or when the CSP world stops trying. <strong>(b)</strong> Let a failure to send a signal alter, delay or block the install flow.</td></tr>
+    <tr><td>R6</td><td>As the install pod, I want this change to add observation only, so shipping it cannot make installations worse.</td><td>Leave every existing CSP-world behaviour on the cancellation and closure paths exactly as it is &mdash; the four triggers, the number of attempts a booking gets, reallocation, the P75 closure, and the timing of each.</td><td><strong>(a)</strong> Change when a task is cancelled or when the CSP world stops trying. <strong>(b)</strong> Let a failure to send a signal alter, delay or block the install flow.</td></tr>
   </table>
   <hr class="sect-end">
 </section>
@@ -244,55 +245,60 @@
 
   <div class="mermaid">
 flowchart TD
-    A["Assigned install task ends without an install"] --> B{"Was a partner assigned to this booking?"}
+    A["Install task ends without an install — declined by CSP, P41 timeout, reported failed by CSP, or P74 timeout"] --> B{"Was a CSP assigned to this booking?"}
     B -- "No" --> C["Outside this spec — no task to cancel"]
-    B -- "Yes" --> D["T1 — send task cancellation signal"]
-    D --> E{"Will the CSP world try again?"}
-    E -- "Yes" --> F["T2 — booking returns to seeking a partner"]
-    E -- "No" --> G["T3 — send closure signal"]
+    B -- "Yes" --> D["T1 — send task cancellation signal, naming the trigger"]
+    D --> E{"Any attempt left to find a CSP?"}
+    E -- "Yes" --> F["T2 — booking returns to seeking a CSP"]
+    E -- "No" --> G{"Is any install task still active?"}
+    G -- "Yes" --> F
+    G -- "No" --> H["T3 — send exhaustion closure signal"]
 
-    H["Partner search permanently gives up, no partner ever assigned"] --> I["T4 — send closure signal"]
+    I["CSP search permanently gives up, no CSP ever assigned"] --> J["T4 — send exhaustion closure signal"]
 
-    J["Booking request expires before any partner engaged"] --> K["Existing request-expiry signal — outside this spec"]
+    K["Request expires, CLOS moves the connection to DEACTIVATED"] --> L["T7 — existing P75 closure signal, unchanged"]
 
-    N["Customer cancels their own booking"] --> O["Customer backend originates it — outside this spec"]
+    M["Customer cancels their own booking"] --> N["Customer backend originates it — outside this spec"]
 
-    L["Any trigger arrives after closure"] --> M["T5 — no signal"]
+    O["Any trigger arrives after closure"] --> P["T5 — no signal"]
   </div>
 
-  <p><strong>Precedence P1.</strong> When a task cancellation and a closure fall due at the same moment, the task cancellation is sent first, then the closure. <span class="tier guard">AI generated</span> (AC-RACE-1)</p>
-  <p><strong>Precedence P2.</strong> A closure signal always wins over a later task cancellation. Once a booking is closed, no further signal of either kind is sent (AC-RACE-2).</p>
+  <p><strong>Precedence P1.</strong> When a task cancellation and an exhaustion closure fall due at the same moment, the task cancellation is sent first, then the closure (AC-RACE-1).</p>
+  <p><strong>Precedence P2.</strong> A closure of either kind always wins over a later task cancellation. Once a booking is closed, no further signal of any kind is sent (AC-RACE-2).</p>
 
   <h3>3b. State transition table &mdash; canon</h3>
-  <p>Lifecycle of an <strong>install journey</strong> (created when a booking becomes a request for installation; ends when the booking is installed or the CSP world stops trying). The partner's own task lifecycle, the customer cancelling their own booking, and everything the customer backend does on receiving a signal are out of scope.</p>
+  <p>Lifecycle of an <strong>install journey</strong> (created when a booking becomes a request for installation; ends when the booking is installed or the CSP world stops trying). The CSP's own task lifecycle, the customer cancelling their own booking, and everything the customer backend does on receiving a signal are out of scope.</p>
 
   <table>
     <tr><th>ID</th><th>From</th><th>Action / Trigger</th><th>Rule / Check</th><th>To</th><th>Side-effects</th></tr>
-    <tr><td>T1</td><td>Partner assigned</td><td>Partner declines the task; or partner reports the installation failed; or the partner acceptance window expires; or the install window expires</td><td>The booking was not cancelled by the customer</td><td>Task cancellation pending</td><td>Task cancellation signal sent immediately, carrying actor, cause, the outgoing partner, and whether further attempts will be made (R1a, R1b, R3, G1). The trigger itself behaves exactly as it does today (R6, G6).</td></tr>
-    <tr><td>T2</td><td>Task cancellation pending</td><td>&mdash;</td><td>Further attempts possible</td><td>Seeking partner</td><td>No further signal. The booking re-enters partner search unchanged (R2b, R6).</td></tr>
-    <tr><td>T3</td><td>Task cancellation pending</td><td>&mdash;</td><td>No further attempts possible</td><td>Closed &mdash; cannot be installed</td><td>Closure signal sent immediately, after the T1 task cancellation, carrying the reason the CSP world stopped (R2a, R4, P1, G3).</td></tr>
-    <tr><td>T4</td><td>Seeking partner</td><td>Partner search permanently gives up</td><td>No partner was ever assigned</td><td>Closed &mdash; cannot be installed</td><td>Closure signal sent immediately (R2a, R4, G3). No task cancellation signal &mdash; no partner was assigned, so no task existed to cancel.</td></tr>
+    <tr><td>T1</td><td>CSP assigned</td><td>One of four triggers: declined by CSP; installation reported failed by CSP; P41 timeout; P74 timeout</td><td>The booking was not cancelled by the customer</td><td>Task cancellation pending</td><td>Task cancellation signal sent immediately, naming which trigger fired, whether a CSP or a timer acted, the outgoing CSP, and whether further attempts will be made (R1a, R1b, R3, G1). The trigger itself behaves exactly as it does today (R6, G4).</td></tr>
+    <tr><td>T2</td><td>Task cancellation pending</td><td>&mdash;</td><td>An attempt remains, or an install task is still active</td><td>Seeking a CSP</td><td>No further signal. The booking re-enters CSP search unchanged (R2b, R6).</td></tr>
+    <tr><td>T3</td><td>Task cancellation pending</td><td>&mdash;</td><td>No attempt remains <strong>and</strong> no install task is active</td><td>Closed &mdash; cannot be installed</td><td>Exhaustion closure signal sent immediately, after the T1 task cancellation, carrying the reason the CSP world stopped (R2a, R4, P1, G2).</td></tr>
+    <tr><td>T4</td><td>Seeking a CSP</td><td>CSP search permanently gives up</td><td>No CSP was ever assigned and no install task is active</td><td>Closed &mdash; cannot be installed</td><td>Exhaustion closure signal sent immediately (R2a, R4, G2). No task cancellation signal &mdash; no CSP was assigned, so no task existed to cancel.</td></tr>
     <tr><td>T5</td><td>Closed &mdash; cannot be installed</td><td>Any further task cancellation or closure trigger</td><td>&mdash;</td><td>Closed &mdash; cannot be installed</td><td>No signal. At most one closure per booking (R2b, P2).</td></tr>
     <tr><td>T6</td><td>Any</td><td>Signal send fails</td><td>&mdash;</td><td>Unchanged</td><td>Delivery is best effort. The install flow is never altered, delayed or blocked by a send failure (R6b). Until the customer backend's fallback timer fires the booking looks alive to it and no refund starts &mdash; that timer is the sole backstop (R5). Recovery before then is the implementer's.</td></tr>
+    <tr><td>T7</td><td>Seeking a CSP</td><td>Request expires; CLOS moves the connection to DEACTIVATED (P75)</td><td>&mdash;</td><td>Closed &mdash; cannot be installed</td><td>The existing P75 closure signal is sent, exactly as it runs today. This spec adds nothing here and changes nothing (R2c, R4, AC-REG-3, G4).</td></tr>
   </table>
 
-  <div class="hint"><strong>Note on T1.</strong> The four triggers are grouped because they produce the same customer outcome: the assigned partner is not coming. They differ only in the attribution the signal carries (R3). See &sect;8 for how each maps to the named CSP-side trigger.</div>
+  <div class="hint"><strong>Note on T1.</strong> The four triggers are grouped because they produce the same customer outcome: the assigned CSP is not coming. They differ only in the attribution the signal carries (R3, G3).</div>
 
   <div class="hint"><strong>Note on T1's check.</strong> A booking the customer cancelled ends through the customer backend's own path, which already knows the outcome. No task cancellation signal is sent back to it (R1 MUST NOT (b), AC-REG-4).</div>
 
-  <div class="hint"><strong>Entry and exit outside this table.</strong> A booking enters at <strong>Seeking partner</strong> when it becomes a request for installation, and moves to <strong>Partner assigned</strong> when a partner is committed to it. Both are governed upstream and send no signal here. A booking that installs successfully leaves the journey through the existing account-creation signal (&sect;1 Boundary) &mdash; no row here, and no task cancellation or closure signal (AC-REG-1).</div>
+  <div class="hint"><strong>Note on T3 and T4.</strong> Both send the same exhaustion closure. They differ only in whether a CSP was ever assigned &mdash; T3 follows CSPs who tried and failed, T4 follows a search that never found anyone. Two conditions must both hold: no attempt remains, and no install task is active. A live task anywhere keeps the booking open (R2 MUST NOT (b)).</div>
+
+  <div class="hint"><strong>Entry and exit outside this table.</strong> A booking enters at <strong>Seeking a CSP</strong> when it becomes a request for installation, and moves to <strong>CSP assigned</strong> when a CSP is committed to it. Both are governed upstream and send no signal here. A booking that installs successfully leaves the journey through the existing account-creation signal (&sect;1 Boundary) &mdash; no row here, and no cancellation or closure signal (AC-REG-1).</div>
   <hr class="sect-end">
 </section>
 
 <section class="spec" id="s4">
   <h2><span class="num">4.</span> Screen Requirements <span class="tier how">HOW</span></h2>
-  <p><strong>No screens.</strong> This spec defines signals between the CSP world and the customer backend. Nothing the customer sees is built here &mdash; the customer team owns every screen driven by these signals, specified separately. No Wiom-side partner or operations screen changes.</p>
+  <p><strong>No screens.</strong> This spec defines signals between the CSP world and the customer backend. Nothing the customer sees is built here &mdash; the customer team owns every screen driven by these signals, specified separately. No Wiom-side CSP or operations screen changes.</p>
   <hr class="sect-end">
 </section>
 
 <section class="spec" id="s5">
   <h2><span class="num">5.</span> Configurability <span class="tier how">HOW</span></h2>
-  <p><strong>No configurable parameters.</strong> This spec introduces no tunable numbers. Both signals go out immediately; any latency budget is engineering's to set and change, not a product parameter. The one-closure-per-booking limit is an invariant, not a setting (R2b). The customer backend's 14-day fallback timer is named in R5 and &sect;8 as an external fact &mdash; the customer team owns it, and it is not this spec's to configure.</p>
+  <p><strong>No configurable parameters.</strong> This spec introduces no tunable numbers. Both new signals go out immediately; any latency budget is engineering's to set and change, not a product parameter. The one-closure-per-booking limit is an invariant, not a setting (R2b). P41, P74 and P75 are existing CSP-world parameters this spec observes but never changes (R6, G4). The customer backend's 14-day fallback timer is named in R5 and &sect;8 as an external fact &mdash; the customer team owns it.</p>
   <hr class="sect-end">
 </section>
 
@@ -300,74 +306,75 @@ flowchart TD
   <h2><span class="num">6.</span> Measurement <span class="tier how">HOW</span></h2>
   <table>
     <tr><th>ID</th><th>The system must be able to answer&hellip;</th><th>Feeds</th></tr>
-    <tr><td>MQ-1</td><td>Of all cancellations of an assigned install task, how many sent a task cancellation signal.</td><td>M1 &middot; G1 &middot; R1a</td></tr>
-    <tr><td>MQ-2</td><td>Of all bookings the CSP world stopped trying on, how many sent a closure signal &mdash; and how many were found only by the customer backend's fallback timer.</td><td>M1 &middot; G3 &middot; R4 &middot; R5</td></tr>
-    <tr><td>MQ-3</td><td>Whether any booking received more than one closure signal.</td><td>R2b invariant</td></tr>
+    <tr><td>MQ-1</td><td>Of all install tasks cancelled by the four triggers, how many sent a task cancellation signal &mdash; split by trigger.</td><td>M1 &middot; G1 &middot; G3 &middot; R1a</td></tr>
+    <tr><td>MQ-2</td><td>Of all bookings the CSP world stopped trying on, how many reached the customer backend &mdash; by exhaustion closure or by the existing P75 closure &mdash; and how many were found only by the customer backend's fallback timer.</td><td>M1 &middot; G2 &middot; R4 &middot; R5</td></tr>
+    <tr><td>MQ-3</td><td>Whether any booking received more than one closure signal, counting both kinds.</td><td>R2b invariant</td></tr>
     <tr><td>MQ-4</td><td>How many customer calls ask for installation status.</td><td>M2</td></tr>
-    <tr><td>MQ-5</td><td>For each signal sent, whether actor, cause, outgoing partner and further-attempts were all present.</td><td>G5 &middot; R3</td></tr>
-    <tr><td>MQ-6</td><td>Whether the rate, timing and attempt counts of task cancellations, reallocations and closures changed after this shipped.</td><td>G6 &middot; R6</td></tr>
+    <tr><td>MQ-5</td><td>For each signal sent, whether the trigger, the actor, the outgoing CSP and further-attempts were all present.</td><td>G3 &middot; R3</td></tr>
+    <tr><td>MQ-6</td><td>Whether the rate, timing and attempt counts of task cancellations, reallocations and closures changed after this shipped.</td><td>G4 &middot; R6</td></tr>
   </table>
   <hr class="sect-end">
 </section>
 
 <section class="spec" id="s7">
   <h2><span class="num">7.</span> Acceptance Criteria <span class="tier how">HOW</span></h2>
-  <div class="expected"><strong>Example data below is illustrative</strong> <span class="tier guard">AI generated</span> &mdash; replace with real booking ids, partner names and dates before sign-off.</div>
 
   <h3>CAN &mdash; Task cancellation signal (T1, T2)</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-CAN-1</td><td><strong>Given</strong> booking 884213 with partner Sunrise Networks assigned and a slot confirmed for 3 Aug, <strong>When</strong> Sunrise declines the task at 10:00:00, <strong>Then</strong> a task cancellation signal for booking 884213 goes out immediately, naming Sunrise as the outgoing partner, the actor as the partner, and the cause as a decline.</td><td>R1a &middot; R1b &middot; R3 &middot; T1 &middot; G1</td><td>Settled</td></tr>
-    <tr><td>AC-CAN-2</td><td><strong>Given</strong> the same booking, <strong>When</strong> Sunrise instead reports the installation failed at 10:00:00, <strong>Then</strong> the task cancellation signal carries the actor as the partner and the cause as a reported install failure &mdash; not a decline.</td><td>R3 &middot; T1 &middot; G5</td><td>Settled</td></tr>
-    <tr><td>AC-CAN-3</td><td><strong>Given</strong> booking 884213 assigned to Sunrise, who never accepts, <strong>When</strong> the partner acceptance window expires, <strong>Then</strong> the task cancellation signal carries the actor as a CSP-side timeout, not the partner.</td><td>R3 &middot; T1 &middot; G5</td><td>Settled</td></tr>
-    <tr><td>AC-CAN-4</td><td><strong>Given</strong> booking 884213 with Sunrise assigned, <strong>When</strong> Sunrise declines at 10:00:00.000 and partner Bluewave is assigned at 10:00:00.180, <strong>Then</strong> the task cancellation signal was still sent &mdash; it is not suppressed by the replacement being found in the same moment.</td><td>R1a &middot; R1 MUST NOT (a) &middot; T1 &middot; G1</td><td>Settled</td></tr>
-    <tr><td>AC-CAN-5</td><td><strong>Given</strong> booking 884213 where further attempts remain after the task cancellation, <strong>When</strong> the signal is sent, <strong>Then</strong> it states that further attempts will be made, and no closure signal is sent.</td><td>R3 &middot; T2 &middot; R2b</td><td>Settled</td></tr>
+    <tr><td>AC-CAN-1</td><td><strong>Given</strong> booking 884213 with CSP Sunrise Networks assigned and a slot confirmed for 3 Aug, <strong>When</strong> Sunrise declines the task at 10:00:00, <strong>Then</strong> a task cancellation signal for booking 884213 goes out immediately, naming the trigger as declined by CSP, the actor as the CSP, and Sunrise as the outgoing CSP.</td><td>R1a &middot; R1b &middot; R3 &middot; T1 &middot; G1</td><td>Settled</td></tr>
+    <tr><td>AC-CAN-2</td><td><strong>Given</strong> the same booking, <strong>When</strong> Sunrise instead reports the installation failed at 10:00:00, <strong>Then</strong> the task cancellation signal names the trigger as installation reported failed by CSP &mdash; not a decline.</td><td>R3 &middot; T1 &middot; G3</td><td>Settled</td></tr>
+    <tr><td>AC-CAN-3</td><td><strong>Given</strong> booking 884213 assigned to Sunrise, who never accepts, <strong>When</strong> the P41 acceptance window expires, <strong>Then</strong> the task cancellation signal names the trigger as P41 timeout and the actor as a CSP-side timer, not the CSP.</td><td>R3 &middot; T1 &middot; G3</td><td>Settled</td></tr>
+    <tr><td>AC-CAN-4</td><td><strong>Given</strong> booking 884213 with Sunrise assigned, <strong>When</strong> Sunrise declines at 10:00:00.000 and CSP Bluewave is assigned at 10:00:00.180, <strong>Then</strong> the task cancellation signal was still sent &mdash; it is not suppressed by the replacement being found in the same moment.</td><td>R1a &middot; R1 MUST NOT (a) &middot; T1 &middot; G1</td><td>Settled</td></tr>
+    <tr><td>AC-CAN-5</td><td><strong>Given</strong> booking 884213 where an attempt remains after the task cancellation, <strong>When</strong> the signal is sent, <strong>Then</strong> it states that further attempts will be made, and no closure signal is sent.</td><td>R3 &middot; T2 &middot; R2b</td><td>Settled</td></tr>
+    <tr><td>AC-CAN-6</td><td><strong>Given</strong> booking 884213 assigned to Sunrise, who has accepted but not installed, <strong>When</strong> the P74 install window elapses, <strong>Then</strong> the task cancellation signal names the trigger as P74 timeout and the actor as a CSP-side timer.</td><td>R3 &middot; T1 &middot; G3</td><td>Settled</td></tr>
   </table>
 
-  <h3>TRM &mdash; Closure signal (T3, T4)</h3>
+  <h3>TRM &mdash; Exhaustion closure signal (T3, T4)</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-TRM-1</td><td><strong>Given</strong> booking 884213 where three partners have already failed and Bluewave is the fourth, <strong>When</strong> Bluewave's install window expires with no further attempts possible, <strong>Then</strong> a task cancellation signal is sent and then a closure signal, both immediately, and the closure states that partners tried and failed.</td><td>R2a &middot; R4 &middot; T3 &middot; P1 &middot; G3</td><td>Settled</td></tr>
-    <tr><td>AC-TRM-2</td><td><strong>Given</strong> booking 990117 that never had a partner assigned, <strong>When</strong> the partner search permanently gives up, <strong>Then</strong> a closure signal is sent immediately stating no partner could be found &mdash; and <strong>no</strong> task cancellation signal is sent.</td><td>R2a &middot; R4 &middot; T4 &middot; G3</td><td>Settled</td></tr>
-    <tr><td>AC-TRM-3</td><td><strong>Given</strong> every booking that reached either stopping condition during August &mdash; partners tried and failed, or no partner findable &mdash; <strong>When</strong> MQ-2 is run for that month, <strong>Then</strong> each one has a closure signal, and the count found only by the customer backend's fallback timer is zero.</td><td>R4 &middot; T3 &middot; T4 &middot; G3 &middot; MQ-2</td><td>Settled</td></tr>
-    <tr><td>AC-TRM-4</td><td><strong>Given</strong> booking 884213 with two attempts still available, <strong>When</strong> the current partner declines, <strong>Then</strong> no closure signal is sent.</td><td>R2 MUST NOT (b) &middot; T2</td><td>Settled</td></tr>
+    <tr><td>AC-TRM-1</td><td><strong>Given</strong> booking 884213 where three CSPs have already failed and Bluewave is the fourth, <strong>When</strong> Bluewave's P74 window elapses with no attempt remaining and no install task active, <strong>Then</strong> a task cancellation signal is sent and then an exhaustion closure signal, both immediately, and the closure states that CSPs tried and failed.</td><td>R2a &middot; R4 &middot; T3 &middot; P1 &middot; G2</td><td>Settled</td></tr>
+    <tr><td>AC-TRM-2</td><td><strong>Given</strong> booking 990117 that never had a CSP assigned, <strong>When</strong> the CSP search permanently gives up and no install task is active, <strong>Then</strong> an exhaustion closure signal is sent immediately stating no CSP could be found &mdash; and <strong>no</strong> task cancellation signal is sent.</td><td>R2a &middot; R4 &middot; T4 &middot; G2</td><td>Settled</td></tr>
+    <tr><td>AC-TRM-3</td><td><strong>Given</strong> every booking that reached a stopping condition during August &mdash; CSPs tried and failed, no CSP findable, or P75 deactivation &mdash; <strong>When</strong> MQ-2 is run for that month, <strong>Then</strong> each one reached the customer backend by one closure or the other, and the count found only by the fallback timer is zero.</td><td>R4 &middot; T3 &middot; T4 &middot; T7 &middot; G2 &middot; MQ-2</td><td>Settled</td></tr>
+    <tr><td>AC-TRM-4</td><td><strong>Given</strong> booking 884213 with two attempts still available, <strong>When</strong> the current CSP declines, <strong>Then</strong> no closure signal is sent.</td><td>R2 MUST NOT (b) &middot; T2</td><td>Settled</td></tr>
+    <tr><td>AC-TRM-5</td><td><strong>Given</strong> booking 884213 with no attempts remaining but an install task still active with CSP Citylink, <strong>When</strong> the exhaustion condition is evaluated, <strong>Then</strong> no closure signal is sent &mdash; a live task keeps the booking open.</td><td>R2 MUST NOT (b) &middot; T2 &middot; T3 check</td><td>Settled</td></tr>
   </table>
 
   <h3>WF &mdash; Workflows (T1 &rarr; T2 &rarr; T1 &rarr; T3)</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-WF-1</td><td><strong>Given</strong> booking 884213 created 20 Jul, <strong>When</strong> four partners in turn are assigned and each task is cancelled &mdash; Sunrise declines, Bluewave times out on acceptance, Citylink's install window expires, Deepnet reports failure exhausting all attempts &mdash; <strong>Then</strong> the customer backend received four task cancellation signals and exactly one closure signal, in that order, and never had to wait for the fallback timer.</td><td>T1 &middot; T2 &middot; T3 &middot; G1 &middot; G3 &middot; R2b &middot; R2 MUST NOT (a) &middot; R5 MUST NOT</td><td>Settled</td></tr>
-    <tr><td>AC-WF-2</td><td><strong>Given</strong> booking 990117 created 20 Jul in a zone with no eligible partners, <strong>When</strong> the partner search gives up without ever assigning anyone, <strong>Then</strong> the customer backend received zero task cancellation signals and exactly one closure signal.</td><td>T4 &middot; G3 &middot; G1</td><td>Settled</td></tr>
+    <tr><td>AC-WF-1</td><td><strong>Given</strong> booking 884213 created 20 Jul, <strong>When</strong> four CSPs in turn are assigned and each task is cancelled &mdash; Sunrise declines, Bluewave hits P41 timeout, Citylink hits P74 timeout, Deepnet reports failure using the last attempt &mdash; <strong>Then</strong> the customer backend received four task cancellation signals naming their four triggers, and exactly one exhaustion closure, in that order, and never had to wait for the fallback timer.</td><td>T1 &middot; T2 &middot; T3 &middot; G1 &middot; G2 &middot; G3 &middot; R2b &middot; R2 MUST NOT (a) &middot; R5 MUST NOT</td><td>Settled</td></tr>
+    <tr><td>AC-WF-2</td><td><strong>Given</strong> booking 990117 created 20 Jul in a zone with no eligible CSPs, <strong>When</strong> the CSP search gives up without ever assigning anyone, <strong>Then</strong> the customer backend received zero task cancellation signals and exactly one exhaustion closure.</td><td>T4 &middot; G2 &middot; G1</td><td>Settled</td></tr>
   </table>
 
   <h3>FAIL &mdash; Failure window (T6)</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-FAIL-1</td><td><strong>Given</strong> booking 884213 reaching closure at 10:00:00 on 1 Aug, <strong>When</strong> the closure signal fails to send and is lost, <strong>Then</strong> no retry occurs, the install flow is unaffected, and the booking is still resolved by the customer backend's 14-day fallback timer by 15 Aug.</td><td>T6 &middot; R5 &middot; R6b</td><td>Settled</td></tr>
-    <tr><td>AC-FAIL-2</td><td><strong>Given</strong> a lost closure signal for booking 884213, <strong>When</strong> MQ-2 is run for August, <strong>Then</strong> that booking is reported as found by the fallback, not as signalled.</td><td>MQ-2 &middot; M1</td><td>Settled</td></tr>
+    <tr><td>AC-FAIL-1</td><td><strong>Given</strong> booking 884213 reaching exhaustion at 10:00:00 on 1 Aug, <strong>When</strong> the closure signal fails to send and is lost, <strong>Then</strong> no retry occurs, the install flow is unaffected, and the booking is still resolved by the customer backend's 14-day fallback timer by 15 Aug.</td><td>T6 &middot; R5 &middot; R6b</td><td>Settled</td></tr>
+    <tr><td>AC-FAIL-2</td><td><strong>Given</strong> a lost exhaustion closure for booking 884213, <strong>When</strong> MQ-2 is run for August, <strong>Then</strong> that booking is reported as found by the fallback, not as signalled.</td><td>MQ-2 &middot; M1</td><td>Settled</td></tr>
   </table>
 
   <h3>REG &mdash; Regression (&sect;1 Boundary)</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-REG-1</td><td><strong>Given</strong> booking 884213 progressing normally to an installed connection, <strong>When</strong> the journey completes, <strong>Then</strong> all six existing signals &mdash; slot proposal, slot assignment, partner arrived, ID verified, wiring done, account creation &mdash; were sent exactly as before, and no task cancellation or closure signal was sent.</td><td>&sect;1 Boundary &middot; G6</td><td>Settled</td></tr>
-    <tr><td>AC-REG-2</td><td><strong>Given</strong> booking 884213 with technician Ramesh assigned, <strong>When</strong> the partner changes the technician to Kavita, <strong>Then</strong> the customer backend receives the slot-assignment signal carrying Kavita's name and mobile, exactly as it does today &mdash; unchanged by this spec.</td><td>&sect;1 Boundary &middot; G6</td><td>Settled</td></tr>
-    <tr><td>AC-REG-3</td><td><strong>Given</strong> booking 990117 that expires before any partner engages, <strong>When</strong> the request expires, <strong>Then</strong> the existing request-expiry signal is sent as it is today, and this spec adds no second signal for the same event.</td><td>&sect;1 Boundary &middot; R2b &middot; G6</td><td>Settled</td></tr>
-    <tr><td>AC-REG-4</td><td><strong>Given</strong> booking 884213 with Sunrise assigned, <strong>When</strong> the customer cancels their own booking through the customer app, <strong>Then</strong> the booking ends through the existing customer-cancellation path and <strong>no</strong> task cancellation signal is sent back to the customer backend.</td><td>R1 MUST NOT (b) &middot; T1 check &middot; &sect;1 Boundary &middot; G6</td><td>Settled</td></tr>
-    <tr><td>AC-REG-5</td><td><strong>Given</strong> booking 884213 whose first partner declines, <strong>When</strong> the CSP world reallocates, <strong>Then</strong> the booking gets the same number of further attempts, in the same order, over the same timings as it would have before this spec shipped &mdash; the signal is the only difference.</td><td>R6 &middot; R6 MUST NOT (a) &middot; G6 &middot; MQ-6</td><td>Settled</td></tr>
+    <tr><td>AC-REG-1</td><td><strong>Given</strong> booking 884213 progressing normally to an installed connection, <strong>When</strong> the journey completes, <strong>Then</strong> all six existing signals &mdash; slot proposal, slot assignment, CSP arrived, ID verified, wiring done, account creation &mdash; were sent exactly as before, and no cancellation or closure signal was sent.</td><td>&sect;1 Boundary &middot; G4</td><td>Settled</td></tr>
+    <tr><td>AC-REG-2</td><td><strong>Given</strong> booking 884213 with technician Ramesh assigned, <strong>When</strong> the CSP changes the technician to Kavita, <strong>Then</strong> the customer backend receives the slot-assignment signal carrying Kavita's name and mobile, exactly as it does today &mdash; unchanged by this spec.</td><td>&sect;1 Boundary &middot; G4</td><td>Settled</td></tr>
+    <tr><td>AC-REG-3</td><td><strong>Given</strong> booking 990117 whose request expires, <strong>When</strong> CLOS moves the connection to DEACTIVATED, <strong>Then</strong> the existing P75 closure signal is sent exactly as it is today, and this spec adds no second closure for the same booking.</td><td>&sect;1 Boundary &middot; R2c &middot; T7 &middot; R2b &middot; G4</td><td>Settled</td></tr>
+    <tr><td>AC-REG-4</td><td><strong>Given</strong> booking 884213 with Sunrise assigned, <strong>When</strong> the customer cancels their own booking through the customer app, <strong>Then</strong> the booking ends through the existing customer-cancellation path and <strong>no</strong> task cancellation signal is sent back to the customer backend.</td><td>R1 MUST NOT (b) &middot; T1 check &middot; &sect;1 Boundary &middot; G4</td><td>Settled</td></tr>
+    <tr><td>AC-REG-5</td><td><strong>Given</strong> booking 884213 whose first CSP declines, <strong>When</strong> the CSP world reallocates, <strong>Then</strong> the booking gets the same number of further attempts, in the same order, over the same timings as it would have before this spec shipped &mdash; the signal is the only difference.</td><td>R6 &middot; R6 MUST NOT (a) &middot; G4 &middot; MQ-6</td><td>Settled</td></tr>
   </table>
 
   <h3>RACE &mdash; Precedence (P1, P2)</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-RACE-1</td><td><strong>Given</strong> booking 884213 on its final attempt, <strong>When</strong> the install window expires &mdash; cancelling the task and exhausting all attempts in the same moment &mdash; <strong>Then</strong> the task cancellation signal is sent first and the closure signal second.</td><td>P1 &middot; T3</td><td>Settled</td></tr>
-    <tr><td>AC-RACE-2</td><td><strong>Given</strong> booking 884213 already closed at 10:00:00, <strong>When</strong> a further task cancellation trigger arrives at 10:00:01, <strong>Then</strong> no signal of either kind is sent.</td><td>P2 &middot; T5 &middot; R2b</td><td>Settled</td></tr>
+    <tr><td>AC-RACE-1</td><td><strong>Given</strong> booking 884213 on its final attempt, <strong>When</strong> the P74 window elapses &mdash; cancelling the task and exhausting the last attempt in the same moment &mdash; <strong>Then</strong> the task cancellation signal is sent first and the exhaustion closure second.</td><td>P1 &middot; T3</td><td>Settled</td></tr>
+    <tr><td>AC-RACE-2</td><td><strong>Given</strong> booking 884213 already closed at 10:00:00, <strong>When</strong> a further task cancellation trigger arrives at 10:00:01, <strong>Then</strong> no signal of any kind is sent.</td><td>P2 &middot; T5 &middot; R2b</td><td>Settled</td></tr>
   </table>
 
   <h3>DUP &mdash; Duplicate triggers</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-DUP-1</td><td><strong>Given</strong> booking 884213 that has received its closure signal, <strong>When</strong> a second closure condition is reached by a different path, <strong>Then</strong> no second closure signal is sent &mdash; the count of closure signals for booking 884213 remains 1.</td><td>R2b &middot; T5</td><td>Settled</td></tr>
+    <tr><td>AC-DUP-1</td><td><strong>Given</strong> booking 884213 that has received its exhaustion closure, <strong>When</strong> a P75 deactivation later occurs for the same booking, <strong>Then</strong> no second closure signal is sent &mdash; the count of closure signals for booking 884213 remains 1.</td><td>R2b &middot; T5 &middot; MQ-3</td><td>Settled</td></tr>
     <tr><td>AC-DUP-2</td><td><strong>Given</strong> booking 884213 with Sunrise assigned, <strong>When</strong> Sunrise's task is cancelled, then Bluewave is assigned and also cancelled, <strong>Then</strong> two task cancellation signals were sent &mdash; repeats are expected and correct.</td><td>R1a &middot; T1 &middot; G1</td><td>Settled</td></tr>
     <tr><td>AC-DUP-3</td><td><strong>Given</strong> booking 884213 with Sunrise assigned, <strong>When</strong> the same decline is submitted twice at 10:00:00 and 10:00:02, <strong>Then</strong> exactly one task cancellation signal is sent for that decline &mdash; a repeated trigger on the same already-cancelled task adds nothing.</td><td>R1a &middot; T1 &middot; G1</td><td>Settled</td></tr>
   </table>
@@ -375,16 +382,16 @@ flowchart TD
   <h3>BV &mdash; Boundary values (attempt limit)</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-BV-1</td><td><strong>Given</strong> booking 884213 with exactly one attempt remaining, <strong>When</strong> the current partner's task is cancelled, <strong>Then</strong> a task cancellation signal is sent stating further attempts will be made, and no closure signal is sent.</td><td>T2 &middot; R3 &middot; R2b</td><td>Settled</td></tr>
-    <tr><td>AC-BV-2</td><td><strong>Given</strong> booking 884213 with no attempts remaining, <strong>When</strong> the current partner's task is cancelled, <strong>Then</strong> both a task cancellation and a closure signal are sent.</td><td>T3 &middot; P1 &middot; G3</td><td>Settled</td></tr>
+    <tr><td>AC-BV-1</td><td><strong>Given</strong> booking 884213 with exactly one attempt remaining, <strong>When</strong> the current CSP's task is cancelled, <strong>Then</strong> a task cancellation signal is sent stating further attempts will be made, and no closure signal is sent.</td><td>T2 &middot; R3 &middot; R2b</td><td>Settled</td></tr>
+    <tr><td>AC-BV-2</td><td><strong>Given</strong> booking 884213 with no attempts remaining and no active task, <strong>When</strong> the current CSP's task is cancelled, <strong>Then</strong> both a task cancellation and an exhaustion closure are sent.</td><td>T3 &middot; P1 &middot; G2</td><td>Settled</td></tr>
   </table>
 
   <h3>GRD &mdash; Guardrails</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-GRD-1</td><td><strong>Given</strong> any task cancellation or closure signal sent in August, <strong>When</strong> MQ-5 is run, <strong>Then</strong> every signal carried actor, cause, outgoing partner and further-attempts &mdash; none blank, none inferred.</td><td>G5 &middot; R3 &middot; MQ-5</td><td>Settled</td></tr>
-    <tr><td>AC-GRD-2</td><td><strong>Given</strong> every booking whose install task was cancelled in August, <strong>When</strong> MQ-1 is run, <strong>Then</strong> each one has a matching task cancellation signal.</td><td>G1 &middot; MQ-1</td><td>Settled</td></tr>
-    <tr><td>AC-GRD-3</td><td><strong>Given</strong> the month before this shipped and the month after, <strong>When</strong> MQ-6 compares them, <strong>Then</strong> task cancellation rate, reallocation rate, attempts per booking and closure rate are unchanged &mdash; the only difference is that signals now go out.</td><td>G6 &middot; R6 &middot; MQ-6</td><td>Settled</td></tr>
+    <tr><td>AC-GRD-1</td><td><strong>Given</strong> any signal sent in August, <strong>When</strong> MQ-5 is run, <strong>Then</strong> every one carried its trigger, its actor, the outgoing CSP and further-attempts &mdash; none blank, none inferred.</td><td>G3 &middot; R3 &middot; MQ-5</td><td>Settled</td></tr>
+    <tr><td>AC-GRD-2</td><td><strong>Given</strong> every install task cancelled in August by any of the four triggers, <strong>When</strong> MQ-1 is run, <strong>Then</strong> each one has a matching task cancellation signal, and the split by trigger accounts for all of them.</td><td>G1 &middot; G3 &middot; MQ-1</td><td>Settled</td></tr>
+    <tr><td>AC-GRD-3</td><td><strong>Given</strong> the month before this shipped and the month after, <strong>When</strong> MQ-6 compares them, <strong>Then</strong> task cancellation rate, reallocation rate, attempts per booking, P75 closure rate and exhaustion rate are unchanged &mdash; the only difference is that the two new signals now go out.</td><td>G4 &middot; R6 &middot; MQ-6</td><td>Settled</td></tr>
   </table>
   <hr class="sect-end">
 </section>
@@ -393,22 +400,24 @@ flowchart TD
   <h2><span class="num">8.</span> Glossary <span class="tier what">WHAT</span></h2>
   <table>
     <tr><th>Term</th><th>Meaning</th><th>Owner (domain)</th></tr>
-    <tr><td>Task cancellation</td><td><strong>Canonical definition:</strong> an assigned install task ending inside the CSP world without an installation &mdash; the partner drops it, or a CSP-side timer takes it off them. Always the CSP world's own doing. Distinct from a customer cancelling their booking, which this document never calls a cancellation. All other mentions cite this definition.</td><td>Install Flow</td></tr>
+    <tr><td>Task cancellation</td><td><strong>Canonical definition:</strong> an assigned install task ending inside the CSP world without an installation, by one of exactly four triggers &mdash; declined by CSP, P41 timeout, installation reported failed by CSP, P74 timeout. Always the CSP world's own doing. Distinct from a customer cancelling their booking, which this document never calls a cancellation. All other mentions cite this definition.</td><td>Install Flow</td></tr>
     <tr><td>Customer booking cancellation</td><td>The customer choosing to cancel their booking. The customer backend originates it and tells the CSP world, so it needs no signal back. Out of scope in both directions (R1 MUST NOT (b), AC-REG-4). Named here only so it is never confused with a task cancellation.</td><td>Customer Backend</td></tr>
-    <tr><td>CSP world</td><td><strong>Canonical definition:</strong> every Wiom system that finds a partner for a booking, assigns the work, and runs the installation. Everything on the Wiom side of the signal.</td><td>Install Flow</td></tr>
+    <tr><td>CSP world</td><td><strong>Canonical definition:</strong> every Wiom system that finds a CSP for a booking, assigns the work, and runs the installation. Everything on the Wiom side of the signal.</td><td>Install Flow</td></tr>
     <tr><td>Customer backend</td><td>The system that owns the customer's booking record and the customer app. It receives these signals and decides what the customer sees and whether money is refunded. Its behaviour is out of scope.</td><td>Customer Backend</td></tr>
-    <tr><td>Install journey</td><td><strong>Canonical definition:</strong> one booking's path from "needs installing" to either installed or abandoned, across however many partners are tried. The entity whose lifecycle &sect;3b governs. Not the same as one partner's task &mdash; a journey can contain several.</td><td>Install Flow</td></tr>
-    <tr><td>Task cancellation signal</td><td>A message saying the partner currently assigned to this booking is no longer coming. Carries who acted, why, which partner, and whether the search continues. Sent on every task cancellation (G1).</td><td>&mdash;</td></tr>
-    <tr><td>Closure signal</td><td>A message saying no partner will install this booking. Sent at most once per booking (R2b).</td><td>&mdash;</td></tr>
-    <tr><td>Assigned install task</td><td>A booking that has a named partner committed to installing it. Cancelling one is what triggers a task cancellation signal.</td><td>Install Flow</td></tr>
-    <tr><td>Further attempts possible</td><td>Whether the CSP world will keep looking after this task cancellation. Two separate limits can run out &mdash; the number of failed installs allowed, and the number of times the search may come back empty. Either running out means no further attempts (R4).</td><td>Install Flow</td></tr>
-    <tr><td>Partner search gives up</td><td>The point at which the CSP world stops looking for a partner and will not resume on its own.</td><td>Allocation</td></tr>
+    <tr><td>Install journey</td><td><strong>Canonical definition:</strong> one booking's path from "needs installing" to either installed or abandoned, across however many CSPs are tried. The entity whose lifecycle &sect;3b governs. Not the same as one CSP's task &mdash; a journey can contain several.</td><td>Install Flow</td></tr>
+    <tr><td>Task cancellation signal</td><td>A message saying the CSP currently assigned to this booking is no longer coming. Names which of the four triggers fired, who acted, which CSP, and whether the search continues. Sent on every task cancellation (G1).</td><td>&mdash;</td></tr>
+    <tr><td>Exhaustion closure signal</td><td>A message saying no CSP will install this booking because every attempt is used up and nothing is active. New in this spec. Sent at most once per booking (R2b).</td><td>&mdash;</td></tr>
+    <tr><td>P75 closure signal</td><td>The closure already sent today when CLOS moves the connection to DEACTIVATED on request expiry. Runs unchanged; listed so the closure picture is complete (T7, AC-REG-3).</td><td>Install Flow</td></tr>
+    <tr><td>Assigned install task</td><td>A booking that has a named CSP committed to installing it. Cancelling one is what triggers a task cancellation signal.</td><td>Install Flow</td></tr>
+    <tr><td>Attempts used up</td><td>The CSP world will not look again. Two separate limits can run out &mdash; the number of failed installs allowed, and the number of times the search may come back empty. Either running out means no attempt remains (R4).</td><td>Install Flow</td></tr>
+    <tr><td>No install task active</td><td>No CSP anywhere is currently holding a live task for this booking. Both this and "attempts used up" must hold before an exhaustion closure is sent (R2 MUST NOT (b)).</td><td>Install Flow</td></tr>
+    <tr><td>CSP search gives up</td><td>The point at which the CSP world stops looking for a CSP and will not resume on its own.</td><td>Allocation</td></tr>
     <tr><td>Fallback timer</td><td>The customer backend's own 14-day clock, which closes a booking it has heard nothing about. Owned by the customer team, not this spec. Kept as the backstop for a lost signal (R5).</td><td>Customer Backend</td></tr>
-    <tr><td>Seeking partner</td><td><strong>State (&sect;3b).</strong> The booking needs installing and no partner is currently committed to it. Its starting state, and where it returns after a task cancellation with attempts left.</td><td>Install Flow</td></tr>
-    <tr><td>Partner assigned</td><td><strong>State (&sect;3b).</strong> A named partner is committed to installing this booking. The state a task cancellation signal is sent from.</td><td>Install Flow</td></tr>
+    <tr><td>Seeking a CSP</td><td><strong>State (&sect;3b).</strong> The booking needs installing and no CSP is currently committed to it. Its starting state, and where it returns after a task cancellation with attempts left.</td><td>Install Flow</td></tr>
+    <tr><td>CSP assigned</td><td><strong>State (&sect;3b).</strong> A named CSP is committed to installing this booking. The state a task cancellation signal is sent from.</td><td>Install Flow</td></tr>
     <tr><td>Task cancellation pending</td><td><strong>State (&sect;3b).</strong> The moment between an assigned task being cancelled and knowing whether the CSP world will try again. Exists only to make the two outcomes &mdash; T2 and T3 &mdash; separate rows.</td><td>Install Flow</td></tr>
-    <tr><td>Closed &mdash; cannot be installed</td><td><strong>State (&sect;3b).</strong> No partner will install this booking. Terminal: no further signal of any kind (P2, R2b).</td><td>Install Flow</td></tr>
-    <tr><td>Named CSP-side triggers <span class="tier guard">AI generated</span></td><td>For engineering mapping, the four T1 triggers are: partner decline; report-installation-failed; the P41 acceptance window; the P74 install window. The two T3/T4 stopping limits are P78 (install retries) and P50 (routing attempts). Product language is canon; these names locate it in the code.</td><td>Install Flow</td></tr>
+    <tr><td>Closed &mdash; cannot be installed</td><td><strong>State (&sect;3b).</strong> No CSP will install this booking. Terminal: no further signal of any kind (P2, R2b). Reached by exhaustion (T3, T4) or by P75 deactivation (T7).</td><td>Install Flow</td></tr>
+    <tr><td>Named CSP-side triggers</td><td>The four T1 triggers map to: CSP decline; report-installation-failed; the P41 acceptance window; the P74 install window. The two exhaustion limits are P78 (install retries) and P50 (routing attempts). P75 is the request-expiry deactivation behind T7.</td><td>Install Flow</td></tr>
   </table>
   <hr class="sect-end">
 </section>
@@ -418,43 +427,34 @@ flowchart TD
   <p>What the platform must be able to do for this feature to exist. Whether these are one system or several, and how they interact, is the implementer's design.</p>
   <table>
     <tr><th>Capability</th><th>Needed by</th></tr>
-    <tr><td>Detect that an assigned install task has ended without an installation, from any of its four causes, and emit a signal immediately.</td><td>T1 &middot; R1 &middot; G1</td></tr>
+    <tr><td>Detect that an assigned install task has ended without an installation, from any of the four triggers, and emit a signal immediately naming which one fired.</td><td>T1 &middot; R1 &middot; G1 &middot; G3</td></tr>
     <tr><td>Tell a CSP-side task cancellation apart from a customer cancelling their own booking, and signal only the former.</td><td>T1 check &middot; R1 MUST NOT (b) &middot; AC-REG-4</td></tr>
-    <tr><td>State, at the moment of a task cancellation, whether the CSP world will try again.</td><td>T2 &middot; T3 &middot; R3 &middot; G5</td></tr>
-    <tr><td>Detect that the CSP world has permanently stopped trying &mdash; by either limit running out &mdash; and emit a signal immediately.</td><td>T3 &middot; T4 &middot; R2a &middot; R4 &middot; G3</td></tr>
-    <tr><td>Emit a closure signal at most once per booking, keyed on the booking's customer id, across all paths that could produce one.</td><td>T5 &middot; R2b</td></tr>
-    <tr><td>Carry actor, cause, outgoing partner and further-attempts on every signal.</td><td>R3 &middot; G5 &middot; MQ-5</td></tr>
-    <tr><td>Emit all of the above without altering, delaying or blocking any existing cancellation, reallocation or closure behaviour &mdash; including when a send fails.</td><td>R6 &middot; G6 &middot; T6</td></tr>
-    <tr><td>Count task cancellations, closures and fallback-resolved bookings, detect a duplicate closure, and compare rates and attempt counts before and after launch.</td><td>MQ-1 &middot; MQ-2 &middot; MQ-3 &middot; MQ-5 &middot; MQ-6</td></tr>
+    <tr><td>State, at the moment of a task cancellation, whether the CSP world will try again.</td><td>T2 &middot; T3 &middot; R3 &middot; G3</td></tr>
+    <tr><td>Detect that every attempt to find a CSP is used up <strong>and</strong> no install task is active &mdash; across both exhaustion limits &mdash; and emit a closure immediately.</td><td>T3 &middot; T4 &middot; R2a &middot; R4 &middot; G2</td></tr>
+    <tr><td>Emit a closure at most once per booking, keyed on the booking's customer id, counting the existing P75 closure against the same limit.</td><td>T5 &middot; T7 &middot; R2b &middot; AC-DUP-1</td></tr>
+    <tr><td>Carry the trigger, the actor, the outgoing CSP and further-attempts on every signal.</td><td>R3 &middot; G3 &middot; MQ-5</td></tr>
+    <tr><td>Emit all of the above without altering, delaying or blocking any existing cancellation, reallocation, P75 closure or timing behaviour &mdash; including when a send fails.</td><td>R6 &middot; G4 &middot; T6 &middot; T7</td></tr>
+    <tr><td>Count task cancellations by trigger, closures of both kinds, and fallback-resolved bookings; detect a duplicate closure; and compare rates and attempt counts before and after launch.</td><td>MQ-1 &middot; MQ-2 &middot; MQ-3 &middot; MQ-5 &middot; MQ-6</td></tr>
   </table>
   <hr class="sect-end">
 </section>
 
-<footer class="checklist" id="review">
-  <h2>Open for review &mdash; PM decisions before sign-off</h2>
-  <p>Every row below was written by the assistant, not stated by the PM. Each must be confirmed or corrected before this PRD can be signed off.</p>
-  <table>
-    <tr><th>Location</th><th>What was generated</th><th>Basis</th></tr>
-    <tr><td>&sect;3a P1</td><td>Task cancellation sent before closure when both fall due together</td><td>The PM chose two signals but not their order. Ordering matters because the channel does not guarantee it</td></tr>
-    <tr><td>&sect;7 all ACs</td><td>Booking ids (884213, 990117), partner names (Sunrise, Bluewave, Citylink, Deepnet), technician names (Ramesh, Kavita), dates</td><td>ACs must be worked examples; no real data was supplied. Replace before sign-off</td></tr>
-    <tr><td>&sect;8</td><td>"Named CSP-side triggers" glossary row</td><td>Added so engineering can map product language to the real triggers without guessing. Remove to keep the PRD fully mechanism-free</td></tr>
-  </table>
-
+<footer class="checklist">
   <h2 id="overrides">Overrides</h2>
   <table>
     <tr><th>Rule overridden</th><th>What was done instead</th><th>Rationale</th><th>Approved by</th></tr>
     <tr><td>&sect;4 requires one block per screen</td><td>&sect;4 states "no screens" with reasoning</td><td>The feature is a backend-to-backend signal contract with no Wiom-side UI</td><td>Ashish Raj, 27 Jul 2026</td></tr>
-    <tr><td>&sect;5 requires every changeable number as a C-id</td><td>&sect;5 states there are none</td><td>This spec has no tunables. Latency is engineering's to set, the one-closure limit is an invariant (R2b), and the 14-day fallback belongs to the customer backend &mdash; named in words in R5 and &sect;8 as an external fact</td><td>Ashish Raj, 27 Jul 2026</td></tr>
+    <tr><td>&sect;5 requires every changeable number as a C-id</td><td>&sect;5 states there are none</td><td>This spec has no tunables. Latency is engineering's to set, the one-closure limit is an invariant (R2b), P41/P74/P75 are existing parameters this spec only observes, and the 14-day fallback belongs to the customer backend</td><td>Ashish Raj, 27 Jul 2026</td></tr>
     <tr><td>L11 &mdash; every &sect;3b row reachable in the &sect;3a chart</td><td>T6 (signal send fails) has no chart node</td><td>T6 is a failure envelope, not a dispatch route. Putting it in the chart would imply it is a routing decision. Template v3's own worked example follows the same pattern</td><td>Ashish Raj, 27 Jul 2026</td></tr>
     <tr><td>AC group prefix should match its subject</td><td>The task cancellation group keeps the prefix <code>CAN</code></td><td>Renaming would change every AC id in the group and every citation of them across &sect;1, &sect;3b, &sect;7 and &sect;9 &mdash; churn with no reader benefit. The group heading carries the full name</td><td>Ashish Raj, 27 Jul 2026</td></tr>
     <tr><td>Template v3 says delete every 📋 guidance block</td><td>The <strong>Reading contract</strong> is kept, restated as document content above &sect;1</td><td>It states load-bearing rules &mdash; &sect;3b is canon, one home per fact, failure as an envelope. Cross-pod readers who do not know Template v3 cannot interpret the document without them</td><td>Ashish Raj, 27 Jul 2026</td></tr>
     <tr><td>Template v3 has no summary section</td><td>An <strong>At a glance</strong> block sits between the header and &sect;1</td><td>Readers outside the install pod need the shape of the change before the rules. It restates &sect;1/&sect;2 only and adds no obligation, so &sect;1 remains the objective's one home</td><td>Ashish Raj, 27 Jul 2026</td></tr>
-    <tr><td>Template v3 &sect;1 holds Objective, Boundary, Guardrails and Metrics only</td><td>A <strong>signals</strong> table sits in &sect;1 after the Boundary</td><td>The deliverable of this spec is two signals. Without one place naming them, when each fires and what each carries, a reader has to assemble it from &sect;1, &sect;2, &sect;3b and &sect;8</td><td>Ashish Raj, 27 Jul 2026</td></tr>
-    <tr><td>Guardrail IDs should run in sequence</td><td>Guardrails are G1, G3, G5, G6 &mdash; G2 and G4 are retired and not reused</td><td>G2 and G4 were rules wearing a guardrail badge; R2b and R5 already carry those obligations. Their IDs stay retired so anyone holding an earlier draft cannot misread a reused number</td><td>Ashish Raj, 27 Jul 2026</td></tr>
+    <tr><td>Template v3 &sect;1 holds Objective, Boundary, Guardrails and Metrics only</td><td>A <strong>signals</strong> table sits in &sect;1 after the Boundary</td><td>The deliverable of this spec is the signals. Without one place naming them, when each fires, what each carries and which already exist, a reader has to assemble it from &sect;1, &sect;2, &sect;3b and &sect;8</td><td>Ashish Raj, 27 Jul 2026</td></tr>
+    <tr><td>This spec states what and why, not mechanism</td><td>P41, P74, P75, P78 and P50 are named in &sect;1, &sect;2, &sect;3b, &sect;5, &sect;7 and &sect;8</td><td>The four cancellation triggers and the P75 closure are the PM's own definition of scope. Naming them removes the ambiguity a paraphrase would leave, and parameter names stay stable where their values do not</td><td>Ashish Raj, 27 Jul 2026</td></tr>
   </table>
 
   <div class="note" style="margin-top:24px; padding:14px; background:var(--bg); border-left:3px solid var(--ink); font-size:13px;">
-    <strong>Status: Draft.</strong> Not signed off. The source Markdown is the canonical artefact; this page renders it. Derived artefacts reference this PRD and never override it &mdash; if one disagrees, this document wins and the artefact is regenerated.
+    <strong>Status: Draft.</strong> Every review item is resolved; not yet signed off. The source Markdown is the canonical artefact; this page renders it. Derived artefacts reference this PRD and never override it &mdash; if one disagrees, this document wins and the artefact is regenerated.
   </div>
 </footer>
 
