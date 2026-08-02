@@ -2,14 +2,14 @@
 
 | | | | |
 |---|---|---|---|
-| **Owner** — Ashish Raj (PM) | **Reviewer** — Engineering Manager | **Status** — Draft | **Sign-off** — Pending |
+| **Owner** — Ashish Raj (PM) | **Reviewer** — Engineering Manager | **Status** — Signed off | **Sign-off** — Signed off · 28 Jul 2026 |
 | **Version** — v0.2 · 27 Jul 2026 | **Consulted — Customer Backend** — Shail | **Consulted — Install Flow** — Ashish Raj | **Consulted — Allocation** — Ashish Raj |
 
 Task cancellation and closure signals from the CSP world to the customer backend, so a customer waiting for an installation always knows whether it is still coming.
 
 **Reading contract.** §3b is canon — if any statement disagrees with it, §3b wins, except dispatch order, which the §3a chart and its precedence rules own. Every fact has one home; every other mention is an ID reference. Failure behaviour is an envelope: the customer-facing outcome guaranteed when recovery runs out, independent of how recovery is attempted. This document states *what and why*; decomposition, schema, storage, retries, latency budgets and instrumentation belong to the implementer.
 
-**Status.** Draft. Every review item is resolved. Awaiting reviewer sign-off.
+**Status.** Signed off. Every review item is resolved and every open question closed.
 
 ---
 
@@ -135,7 +135,7 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 | T3 | Task cancellation pending | — | No attempt remains **and** no install task is active | Closed — cannot be installed | Exhaustion closure signal sent immediately, after the T1 task cancellation, carrying the reason the CSP world stopped (R2a, R4, P1, G2). |
 | T4 | Seeking a CSP | CSP search permanently gives up | No CSP was ever assigned and no install task is active | Closed — cannot be installed | Exhaustion closure signal sent immediately (R2a, R4, G2). No task cancellation signal — no CSP was assigned, so no task existed to cancel. |
 | T5 | Closed — cannot be installed | Any further task cancellation or closure trigger | — | Closed — cannot be installed | No signal. At most one closure per booking (R2b, P2). |
-| T6 | Any | Signal send fails | — | Unchanged | Delivery is best effort. The install flow is never altered, delayed or blocked by a send failure (R6b). Until the customer backend's fallback timer fires the booking looks alive to it — that timer is the sole backstop (R5). Recovery before then is the implementer's. |
+| T6 | Any | Signal send fails | — | Unchanged | Delivery is best effort. The install flow is never altered, delayed or blocked by a send failure (R6 MUST NOT (b)). Until the customer backend's fallback timer fires the booking looks alive to it — that timer is the sole backstop (R5). Recovery before then is the implementer's. |
 | T7 | Seeking a CSP | Request expires; CLOS moves the connection to DEACTIVATED (P75) | — | Closed — cannot be installed | The existing P75 closure signal is sent, exactly as it runs today. This spec adds nothing here and changes nothing (R2c, R4, AC-REG-3, G4). |
 
 **Note on T1.** The four triggers are grouped because they produce the same customer outcome: the assigned CSP is not coming. They differ only in the attribution the signal carries (R3, G3).
@@ -194,7 +194,7 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 |---|---|---|---|
 | AC-TRM-1 | **Given** booking 884213 where three CSPs have already failed and Bluewave is the fourth, **When** Bluewave's P74 window elapses with no attempt remaining and no install task active, **Then** a task cancellation signal is sent and then an exhaustion closure signal, both immediately, and the closure states that CSPs tried and failed. | R2a · R4 · T3 · P1 · G2 | Settled |
 | AC-TRM-2 | **Given** booking 990117 that never had a CSP assigned, **When** the CSP search permanently gives up and no install task is active, **Then** an exhaustion closure signal is sent immediately stating no CSP could be found — and **no** task cancellation signal is sent. | R2a · R4 · T4 · G2 | Settled |
-| AC-TRM-3 | **Given** every booking that reached a stopping condition during August — CSPs tried and failed, no CSP findable, or P75 deactivation — **When** MQ-2 is run for that month, **Then** each one reached the customer backend by one closure or the other, and the count found only by the fallback timer is zero. | R4 · T3 · T4 · T7 · G2 · MQ-2 | Settled |
+| AC-TRM-3 | **Given** every booking that reached a stopping condition during August — CSPs tried and failed, no CSP findable, or P75 deactivation — **When** MQ-2 is run for that month, **Then** each one reached the customer backend by one closure or the other, and the count found only by the fallback timer is zero. | R4 · R4 MUST NOT · T3 · T4 · T7 · G2 · MQ-2 | Settled |
 | AC-TRM-4 | **Given** booking 884213 with two attempts still available, **When** the current CSP declines, **Then** no closure signal is sent. | R2 MUST NOT (b) · T2 | Settled |
 | AC-TRM-5 | **Given** booking 884213 with no attempts remaining but an install task still active with CSP Citylink, **When** the exhaustion condition is evaluated, **Then** no closure signal is sent — a live task keeps the booking open. | R2 MUST NOT (b) · T2 · T3 check | Settled |
 
@@ -209,7 +209,7 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-FAIL-1 | **Given** booking 884213 reaching exhaustion at 10:00:00 on 1 Aug, **When** the closure signal fails to send and is lost, **Then** no retry occurs, the install flow is unaffected, and the booking is still resolved by the customer backend's 14-day fallback timer by 15 Aug. | T6 · R5 · R6b | Settled |
+| AC-FAIL-1 | **Given** booking 884213 reaching exhaustion at 10:00:00 on 1 Aug, **When** the closure signal fails to send and is lost, **Then** no retry occurs, the install flow is unaffected, and the booking is still resolved by the customer backend's 14-day fallback timer by 15 Aug. | T6 · R5 · R6 MUST NOT (b) | Settled |
 | AC-FAIL-2 | **Given** a lost exhaustion closure for booking 884213, **When** MQ-2 is run for August, **Then** that booking is reported as found by the fallback, not as signalled. | MQ-2 · M1 | Settled |
 
 ### REG — Regression (§1 Boundary)
@@ -248,7 +248,7 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-GRD-1 | **Given** any signal sent in August, **When** MQ-5 is run, **Then** every one carried its trigger, its actor, the outgoing CSP and further-attempts — none blank, none inferred — and every CSP-acted cancellation also carried the CSP's own reason. | G3 · R3a · R3b · MQ-5 | Settled |
+| AC-GRD-1 | **Given** any signal sent in August, **When** MQ-5 is run, **Then** every one carried its trigger, its actor, the outgoing CSP and further-attempts — none blank, none inferred — and every CSP-acted cancellation also carried the CSP's own reason. | G3 · R3a · R3b · R3 MUST NOT (a) · MQ-5 | Settled |
 | AC-GRD-2 | **Given** every install task cancelled in August by any of the four triggers, **When** MQ-1 is run, **Then** each one has a matching task cancellation signal, and the split by trigger accounts for all of them. | G1 · G3 · MQ-1 | Settled |
 | AC-GRD-3 | **Given** the month before this shipped and the month after, **When** MQ-6 compares them, **Then** task cancellation rate, reallocation rate, attempts per booking, P75 closure rate and exhaustion rate are unchanged — the only difference is that the two new signals now go out. | G4 · R6 · MQ-6 | Settled |
 
@@ -313,4 +313,4 @@ What the platform must be able to do for this feature to exist. Whether these ar
 
 ---
 
-**Status: Draft.** Every review item is resolved; not yet signed off. This Markdown is the canonical artefact; the published page renders it. Derived artefacts reference this PRD and never override it — if one disagrees, this document wins and the artefact is regenerated.
+**Status: Signed off · 28 Jul 2026.** This Markdown is the canonical artefact; the published page renders it. Derived artefacts reference this PRD and never override it — if one disagrees, this document wins and the artefact is regenerated.

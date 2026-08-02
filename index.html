@@ -141,8 +141,8 @@
     <div><strong>Owner</strong> &mdash; Ashish Raj (PM)</div>
     <div><strong>Reviewer</strong> &mdash; Engineering Manager</div>
     <div><strong>Version</strong> &mdash; v0.2 &middot; 27 Jul 2026</div>
-    <div><strong>Status</strong> &mdash; Draft</div>
-    <div><strong>Sign-off</strong> &mdash; Pending</div>
+    <div><strong>Status</strong> &mdash; Signed off</div>
+    <div><strong>Sign-off</strong> &mdash; Signed off &middot; 28 Jul 2026</div>
   </div>
   <div class="meta-row">
     <div><strong>Consulted &mdash; Customer Backend</strong> &mdash; Shail</div>
@@ -151,7 +151,7 @@
   </div>
   <div class="convention">
     <strong>Reading contract.</strong> &sect;3b is canon &mdash; if any statement disagrees with it, &sect;3b wins, except dispatch order, which the &sect;3a chart and its precedence rules own. Every fact has one home; every other mention is an ID reference. Failure behaviour is an envelope: the customer-facing outcome guaranteed when recovery runs out, independent of how recovery is attempted. This document states <em>what and why</em>; decomposition, schema, storage, retries, latency budgets and instrumentation belong to the implementer.
-    <strong>Status.</strong> Draft. Every review item is resolved. Awaiting reviewer sign-off.
+    <strong>Status.</strong> Signed off. Every review item is resolved and every open question closed.
   </div>
 </header>
 
@@ -275,7 +275,7 @@ flowchart TD
     <tr><td>T3</td><td>Task cancellation pending</td><td>&mdash;</td><td>No attempt remains <strong>and</strong> no install task is active</td><td>Closed &mdash; cannot be installed</td><td>Exhaustion closure signal sent immediately, after the T1 task cancellation, carrying the reason the CSP world stopped (R2a, R4, P1, G2).</td></tr>
     <tr><td>T4</td><td>Seeking a CSP</td><td>CSP search permanently gives up</td><td>No CSP was ever assigned and no install task is active</td><td>Closed &mdash; cannot be installed</td><td>Exhaustion closure signal sent immediately (R2a, R4, G2). No task cancellation signal &mdash; no CSP was assigned, so no task existed to cancel.</td></tr>
     <tr><td>T5</td><td>Closed &mdash; cannot be installed</td><td>Any further task cancellation or closure trigger</td><td>&mdash;</td><td>Closed &mdash; cannot be installed</td><td>No signal. At most one closure per booking (R2b, P2).</td></tr>
-    <tr><td>T6</td><td>Any</td><td>Signal send fails</td><td>&mdash;</td><td>Unchanged</td><td>Delivery is best effort. The install flow is never altered, delayed or blocked by a send failure (R6b). Until the customer backend's fallback timer fires the booking looks alive to it &mdash; that timer is the sole backstop (R5). Recovery before then is the implementer's.</td></tr>
+    <tr><td>T6</td><td>Any</td><td>Signal send fails</td><td>&mdash;</td><td>Unchanged</td><td>Delivery is best effort. The install flow is never altered, delayed or blocked by a send failure (R6 MUST NOT (b)). Until the customer backend's fallback timer fires the booking looks alive to it &mdash; that timer is the sole backstop (R5). Recovery before then is the implementer's.</td></tr>
     <tr><td>T7</td><td>Seeking a CSP</td><td>Request expires; CLOS moves the connection to DEACTIVATED (P75)</td><td>&mdash;</td><td>Closed &mdash; cannot be installed</td><td>The existing P75 closure signal is sent, exactly as it runs today. This spec adds nothing here and changes nothing (R2c, R4, AC-REG-3, G4).</td></tr>
   </table>
 
@@ -336,7 +336,7 @@ flowchart TD
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
     <tr><td>AC-TRM-1</td><td><strong>Given</strong> booking 884213 where three CSPs have already failed and Bluewave is the fourth, <strong>When</strong> Bluewave's P74 window elapses with no attempt remaining and no install task active, <strong>Then</strong> a task cancellation signal is sent and then an exhaustion closure signal, both immediately, and the closure states that CSPs tried and failed.</td><td>R2a &middot; R4 &middot; T3 &middot; P1 &middot; G2</td><td>Settled</td></tr>
     <tr><td>AC-TRM-2</td><td><strong>Given</strong> booking 990117 that never had a CSP assigned, <strong>When</strong> the CSP search permanently gives up and no install task is active, <strong>Then</strong> an exhaustion closure signal is sent immediately stating no CSP could be found &mdash; and <strong>no</strong> task cancellation signal is sent.</td><td>R2a &middot; R4 &middot; T4 &middot; G2</td><td>Settled</td></tr>
-    <tr><td>AC-TRM-3</td><td><strong>Given</strong> every booking that reached a stopping condition during August &mdash; CSPs tried and failed, no CSP findable, or P75 deactivation &mdash; <strong>When</strong> MQ-2 is run for that month, <strong>Then</strong> each one reached the customer backend by one closure or the other, and the count found only by the fallback timer is zero.</td><td>R4 &middot; T3 &middot; T4 &middot; T7 &middot; G2 &middot; MQ-2</td><td>Settled</td></tr>
+    <tr><td>AC-TRM-3</td><td><strong>Given</strong> every booking that reached a stopping condition during August &mdash; CSPs tried and failed, no CSP findable, or P75 deactivation &mdash; <strong>When</strong> MQ-2 is run for that month, <strong>Then</strong> each one reached the customer backend by one closure or the other, and the count found only by the fallback timer is zero.</td><td>R4 &middot; R4 MUST NOT &middot; T3 &middot; T4 &middot; T7 &middot; G2 &middot; MQ-2</td><td>Settled</td></tr>
     <tr><td>AC-TRM-4</td><td><strong>Given</strong> booking 884213 with two attempts still available, <strong>When</strong> the current CSP declines, <strong>Then</strong> no closure signal is sent.</td><td>R2 MUST NOT (b) &middot; T2</td><td>Settled</td></tr>
     <tr><td>AC-TRM-5</td><td><strong>Given</strong> booking 884213 with no attempts remaining but an install task still active with CSP Citylink, <strong>When</strong> the exhaustion condition is evaluated, <strong>Then</strong> no closure signal is sent &mdash; a live task keeps the booking open.</td><td>R2 MUST NOT (b) &middot; T2 &middot; T3 check</td><td>Settled</td></tr>
   </table>
@@ -351,7 +351,7 @@ flowchart TD
   <h3>FAIL &mdash; Failure window (T6)</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-FAIL-1</td><td><strong>Given</strong> booking 884213 reaching exhaustion at 10:00:00 on 1 Aug, <strong>When</strong> the closure signal fails to send and is lost, <strong>Then</strong> no retry occurs, the install flow is unaffected, and the booking is still resolved by the customer backend's 14-day fallback timer by 15 Aug.</td><td>T6 &middot; R5 &middot; R6b</td><td>Settled</td></tr>
+    <tr><td>AC-FAIL-1</td><td><strong>Given</strong> booking 884213 reaching exhaustion at 10:00:00 on 1 Aug, <strong>When</strong> the closure signal fails to send and is lost, <strong>Then</strong> no retry occurs, the install flow is unaffected, and the booking is still resolved by the customer backend's 14-day fallback timer by 15 Aug.</td><td>T6 &middot; R5 &middot; R6 MUST NOT (b)</td><td>Settled</td></tr>
     <tr><td>AC-FAIL-2</td><td><strong>Given</strong> a lost exhaustion closure for booking 884213, <strong>When</strong> MQ-2 is run for August, <strong>Then</strong> that booking is reported as found by the fallback, not as signalled.</td><td>MQ-2 &middot; M1</td><td>Settled</td></tr>
   </table>
 
@@ -390,7 +390,7 @@ flowchart TD
   <h3>GRD &mdash; Guardrails</h3>
   <table>
     <tr><th>AC</th><th>Given / When / Then</th><th>Verifies</th><th>Status</th></tr>
-    <tr><td>AC-GRD-1</td><td><strong>Given</strong> any signal sent in August, <strong>When</strong> MQ-5 is run, <strong>Then</strong> every one carried its trigger, its actor, the outgoing CSP and further-attempts &mdash; none blank, none inferred &mdash; and every CSP-acted cancellation also carried the CSP's own reason.</td><td>G3 &middot; R3a &middot; R3b &middot; MQ-5</td><td>Settled</td></tr>
+    <tr><td>AC-GRD-1</td><td><strong>Given</strong> any signal sent in August, <strong>When</strong> MQ-5 is run, <strong>Then</strong> every one carried its trigger, its actor, the outgoing CSP and further-attempts &mdash; none blank, none inferred &mdash; and every CSP-acted cancellation also carried the CSP's own reason.</td><td>G3 &middot; R3a &middot; R3b &middot; R3 MUST NOT (a) &middot; MQ-5</td><td>Settled</td></tr>
     <tr><td>AC-GRD-2</td><td><strong>Given</strong> every install task cancelled in August by any of the four triggers, <strong>When</strong> MQ-1 is run, <strong>Then</strong> each one has a matching task cancellation signal, and the split by trigger accounts for all of them.</td><td>G1 &middot; G3 &middot; MQ-1</td><td>Settled</td></tr>
     <tr><td>AC-GRD-3</td><td><strong>Given</strong> the month before this shipped and the month after, <strong>When</strong> MQ-6 compares them, <strong>Then</strong> task cancellation rate, reallocation rate, attempts per booking, P75 closure rate and exhaustion rate are unchanged &mdash; the only difference is that the two new signals now go out.</td><td>G4 &middot; R6 &middot; MQ-6</td><td>Settled</td></tr>
   </table>
@@ -457,7 +457,7 @@ flowchart TD
   </table>
 
   <div class="note" style="margin-top:24px; padding:14px; background:var(--bg); border-left:3px solid var(--ink); font-size:13px;">
-    <strong>Status: Draft.</strong> Every review item is resolved; not yet signed off. This Markdown is the canonical artefact; the published page renders it. Derived artefacts reference this PRD and never override it &mdash; if one disagrees, this document wins and the artefact is regenerated.
+    <strong>Status: Signed off &middot; 28 Jul 2026.</strong> This Markdown is the canonical artefact; the published page renders it. Derived artefacts reference this PRD and never override it &mdash; if one disagrees, this document wins and the artefact is regenerated.
   </div>
 </footer>
 
