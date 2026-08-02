@@ -26,7 +26,7 @@ Two new signals, one existing closure confirmed, and one existing behaviour prot
 | **Read this first** | "Cancellation" here always means an **install task** being cancelled by the CSP world — never a customer cancelling their booking. That is a different event travelling the other way, and it is out of scope (§8). |
 | **Not in scope** | Technician reassignment already re-sends the technician's details on every change. No work needed — protected by AC-REG-2. |
 | **Delivery** | Best effort, matching the existing signals on this channel. The customer backend's fallback timer therefore stays as the required backstop (R5). |
-| **Owned elsewhere** | What the customer backend does with any signal — refunds, messages, app screens — is the customer team's, specified separately. |
+| **Owned elsewhere** | What the customer backend does on receiving a signal is entirely its own. This spec ends at the send. |
 
 ---
 
@@ -45,7 +45,7 @@ It leaves unchanged:
 - The P75 closure signal sent today when CLOS moves the connection to DEACTIVATED (AC-REG-3, T7).
 - Customer-initiated booking cancellation, in both directions (AC-REG-4).
 - Every other CSP-world behaviour on the cancellation and closure paths — when a task is cancelled, when the CSP world stops trying, how many attempts a booking gets (R6, G4).
-- What the customer backend does with any signal — refunds, messages, app screens. That work is owned by the customer team and specified separately.
+- What the customer backend does on receiving any signal. This spec ends at the send; everything past it belongs to the customer team.
 
 Out of scope: a device returned to the warehouse after installation; the defect where a failed technician lookup sends an empty name and mobile.
 
@@ -55,7 +55,7 @@ Three in total on these paths. Two are new; one already runs today and is listed
 
 | Signal | Sent when | Carries | How often | Build |
 |---|---|---|---|---|
-| **Task cancellation** | An assigned install task is cancelled inside the CSP world, by one of four triggers — **declined by CSP** · **P41 timeout** (the CSP never accepted) · **installation reported failed by CSP** · **P74 timeout** (the install window elapsed) — T1 | Which of the four triggers fired · whether a CSP acted or a CSP-side timer did · which CSP the task was taken from · whether further attempts will be made (R3) | Every time, even when a replacement CSP is found in the same instant (G1). Repeats across successive CSPs are expected and correct | **New** |
+| **Task cancellation** | An assigned install task is cancelled inside the CSP world, by one of four triggers — **declined by CSP** · **P41 timeout** (the CSP never accepted) · **installation reported failed by CSP** · **P74 timeout** (the install window elapsed) — T1 | Which of the four triggers fired · whether a CSP acted or a CSP-side timer did · which CSP the task was taken from · **the reason the CSP gave**, on the two triggers where a CSP acts · whether further attempts will be made (R3a, R3b) | Every time, even when a replacement CSP is found in the same instant (G1). Repeats across successive CSPs are expected and correct | **New** |
 | **Closure — CSP world exhausted** | Every attempt to find a CSP is used up **and** no install task is active. The CSP world permanently stops trying (T3, T4) | The reason the CSP world stopped — attempts used up after CSPs tried and failed, or no CSP findable at all (R2a) | At most once per booking, keyed on the booking's customer id (R2b) | **New** |
 | **Closure — connection deactivated (P75)** | CLOS moves the connection to DEACTIVATED on request expiry (T7) | Unchanged from today | Once per booking | **Live today** — no work in this spec (AC-REG-3) |
 
@@ -65,7 +65,7 @@ Three in total on these paths. Two are new; one already runs today and is listed
 |---|---|---|---|
 | G1 | **Every task cancellation speaks** | Every task cancellation on a live booking sends a signal, whether or not a replacement CSP is found. Once a booking is closed, nothing further is sent (P2). A customer cancelling their own booking is not a task cancellation and sends nothing (R1 MUST NOT (b)). | R1a · AC-CAN-1 · AC-CAN-4 · MQ-1 |
 | G2 | **No silent giving up** | Every way the CSP world can permanently stop trying reaches the customer backend — the new exhaustion closure, or the P75 deactivation closure that already runs. Whichever happens first. A booking already closed sends nothing further (P2, R2b). | R4 · AC-TRM-3 · MQ-2 |
-| G3 | **Always attributed** | Every signal says who caused it and why, without the reader having to infer it. For a task cancellation that means naming which of the four triggers fired. | R3 · AC-GRD-1 · MQ-5 |
+| G3 | **Always attributed** | Every signal says who caused it and why, without the reader having to infer it. For a task cancellation that means naming which of the four triggers fired, and passing on the reason the CSP gave whenever a CSP was the one who acted. | R3a · R3b · AC-GRD-1 · MQ-5 |
 | G4 | **Nothing existing breaks** | This change adds signals and nothing else. Every CSP-world behaviour around task cancellation and closure works exactly as it does today — same triggers, same attempt counts, same reallocation, same timing, same P75 closure. | R6 · AC-REG-1 · AC-REG-2 · AC-REG-3 · AC-REG-4 · AC-GRD-3 · MQ-6 |
 
 ### Success metrics
@@ -86,8 +86,8 @@ Three in total on these paths. Two are new; one already runs today and is listed
 | ID | Story | MUST | MUST NOT |
 |---|---|---|---|
 | R1 | As a customer whose assigned CSP is no longer coming, I want that fact sent to the customer backend, so my booking status stops showing someone who will not arrive. | **(a)** Send a task cancellation signal every time an assigned install task is cancelled, by any of the four triggers: declined by CSP, P41 timeout, installation reported failed by CSP, P74 timeout. **(b)** Send it immediately, once the cancellation is settled. | **(a)** Hold back or merge the signal because a replacement CSP was found in the same moment. **(b)** Send a task cancellation signal when the customer cancelled their own booking — that event travels the other way. |
-| R2 | As a customer whose booking can no longer be installed, I want the customer backend told for certain, so it can close the booking and start a refund. | **(a)** Send an exhaustion closure signal immediately when every attempt to find a CSP is used up and no install task is active, carrying the reason it stopped. **(b)** Send at most one closure signal per booking, keyed on the booking's customer id. **(c)** Leave the existing P75 deactivation closure exactly as it runs today. | **(a)** Leave the customer backend to work this out from its fallback timer. **(b)** Send an exhaustion closure while any attempt remains, or while any install task is still active. |
-| R3 | As the customer backend, I need to tell these cases apart without guessing, so I can act differently on each. | Carry on every signal: which trigger fired; whether a CSP acted or a CSP-side timer did; which CSP the task was taken from; and whether further attempts will be made. | Require the reader to infer any of these from timing, ordering, or the absence of a later signal. |
+| R2 | As a customer whose booking can no longer be installed, I want the customer backend told for certain, so it is never left guessing whether the CSP world is still working on my booking. | **(a)** Send an exhaustion closure signal immediately when every attempt to find a CSP is used up and no install task is active, carrying the reason it stopped. **(b)** Send at most one closure signal per booking, keyed on the booking's customer id. **(c)** Leave the existing P75 deactivation closure exactly as it runs today. | **(a)** Leave the customer backend to work this out from its fallback timer. **(b)** Send an exhaustion closure while any attempt remains, or while any install task is still active. |
+| R3 | As the customer backend, I need to tell these cases apart without guessing, so I can act differently on each. | **(a)** Carry on every signal: which trigger fired; whether a CSP acted or a CSP-side timer did; which CSP the task was taken from; and whether further attempts will be made. **(b)** On the two triggers where a CSP acts — declining, and reporting the installation failed — also carry the reason that CSP gave, as they gave it. | **(a)** Require the reader to infer any of these from timing, ordering, or the absence of a later signal. **(b)** Invent, translate or summarise the CSP's reason, or attach one to a P41 or P74 timeout, where no CSP gave a reason at all. |
 | R4 | As a customer, I want the same answer whichever way the CSP world ran out of options, so no dead booking stays silent. | Cover **every** path on which the CSP world permanently stops trying — CSPs tried and failed, no CSP findable at all, and connection deactivation (P75). | Cover only the common path and leave the others silent. |
 | R5 | As the business, I want a backstop, because these signals can be lost in transit. | Keep the customer backend's existing 14-day fallback timer running. | Treat the timer as the primary path, or remove it once these signals ship. |
 | R6 | As the install pod, I want this change to add observation only, so shipping it cannot make installations worse. | Leave every existing CSP-world behaviour on the cancellation and closure paths exactly as it is — the four triggers, the number of attempts a booking gets, reallocation, the P75 closure, and the timing of each. | **(a)** Change when a task is cancelled or when the CSP world stops trying. **(b)** Let a failure to send a signal alter, delay or block the install flow. |
@@ -128,12 +128,12 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 
 | ID | From | Action / Trigger | Rule / Check | To | Side-effects |
 |---|---|---|---|---|---|
-| T1 | CSP assigned | One of four triggers: declined by CSP; installation reported failed by CSP; P41 timeout; P74 timeout | The booking was not cancelled by the customer | Task cancellation pending | Task cancellation signal sent immediately, naming which trigger fired, whether a CSP or a timer acted, the outgoing CSP, and whether further attempts will be made (R1a, R1b, R3, G1). The trigger itself behaves exactly as it does today (R6, G4). |
+| T1 | CSP assigned | One of four triggers: declined by CSP; installation reported failed by CSP; P41 timeout; P74 timeout | The booking was not cancelled by the customer | Task cancellation pending | Task cancellation signal sent immediately, naming which trigger fired, whether a CSP or a timer acted, the outgoing CSP, and whether further attempts will be made (R1a, R1b, R3a, G1). On the two CSP-acted triggers it also carries the reason that CSP gave; on the two timeouts it carries none, because none was given (R3b, G3). The trigger itself behaves exactly as it does today (R6, G4). |
 | T2 | Task cancellation pending | — | An attempt remains, or an install task is still active | Seeking a CSP | No further signal. The booking re-enters CSP search unchanged (R2b, R6). |
 | T3 | Task cancellation pending | — | No attempt remains **and** no install task is active | Closed — cannot be installed | Exhaustion closure signal sent immediately, after the T1 task cancellation, carrying the reason the CSP world stopped (R2a, R4, P1, G2). |
 | T4 | Seeking a CSP | CSP search permanently gives up | No CSP was ever assigned and no install task is active | Closed — cannot be installed | Exhaustion closure signal sent immediately (R2a, R4, G2). No task cancellation signal — no CSP was assigned, so no task existed to cancel. |
 | T5 | Closed — cannot be installed | Any further task cancellation or closure trigger | — | Closed — cannot be installed | No signal. At most one closure per booking (R2b, P2). |
-| T6 | Any | Signal send fails | — | Unchanged | Delivery is best effort. The install flow is never altered, delayed or blocked by a send failure (R6b). Until the customer backend's fallback timer fires the booking looks alive to it and no refund starts — that timer is the sole backstop (R5). Recovery before then is the implementer's. |
+| T6 | Any | Signal send fails | — | Unchanged | Delivery is best effort. The install flow is never altered, delayed or blocked by a send failure (R6b). Until the customer backend's fallback timer fires the booking looks alive to it — that timer is the sole backstop (R5). Recovery before then is the implementer's. |
 | T7 | Seeking a CSP | Request expires; CLOS moves the connection to DEACTIVATED (P75) | — | Closed — cannot be installed | The existing P75 closure signal is sent, exactly as it runs today. This spec adds nothing here and changes nothing (R2c, R4, AC-REG-3, G4). |
 
 **Note on T1.** The four triggers are grouped because they produce the same customer outcome: the assigned CSP is not coming. They differ only in the attribution the signal carries (R3, G3).
@@ -166,7 +166,8 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 | MQ-2 | Of all bookings the CSP world stopped trying on, how many reached the customer backend — by exhaustion closure or by the existing P75 closure — and how many were found only by the customer backend's fallback timer. | M1 · G2 · R4 · R5 |
 | MQ-3 | Whether any booking received more than one closure signal, counting both kinds. | R2b invariant |
 | MQ-4 | How many customer calls ask for installation status. | M2 |
-| MQ-5 | For each signal sent, whether the trigger, the actor, the outgoing CSP and further-attempts were all present. | G3 · R3 |
+| MQ-5 | For each signal sent, whether the trigger, the actor, the outgoing CSP and further-attempts were all present — and, on CSP-acted cancellations, whether the CSP's reason came through. | G3 · R3a · R3b |
+| MQ-7 | What reasons CSPs give when they decline or report an installation failed, and how those reasons are distributed. | G3 · R3b |
 | MQ-6 | Whether the rate, timing and attempt counts of task cancellations, reallocations and closures changed after this shipped. | G4 · R6 |
 
 ---
@@ -177,12 +178,13 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-CAN-1 | **Given** booking 884213 with CSP Sunrise Networks assigned and a slot confirmed for 3 Aug, **When** Sunrise declines the task at 10:00:00, **Then** a task cancellation signal for booking 884213 goes out immediately, naming the trigger as declined by CSP, the actor as the CSP, and Sunrise as the outgoing CSP. | R1a · R1b · R3 · T1 · G1 | Settled |
-| AC-CAN-2 | **Given** the same booking, **When** Sunrise instead reports the installation failed at 10:00:00, **Then** the task cancellation signal names the trigger as installation reported failed by CSP — not a decline. | R3 · T1 · G3 | Settled |
-| AC-CAN-3 | **Given** booking 884213 assigned to Sunrise, who never accepts, **When** the P41 acceptance window expires, **Then** the task cancellation signal names the trigger as P41 timeout and the actor as a CSP-side timer, not the CSP. | R3 · T1 · G3 | Settled |
+| AC-CAN-1 | **Given** booking 884213 with CSP Sunrise Networks assigned and a slot confirmed for 3 Aug, **When** Sunrise declines the task at 10:00:00 giving the reason "no technician available this week", **Then** a task cancellation signal for booking 884213 goes out immediately, naming the trigger as declined by CSP, the actor as the CSP, Sunrise as the outgoing CSP, and that reason exactly as Sunrise gave it. | R1a · R1b · R3a · R3b · T1 · G1 · G3 | Settled |
+| AC-CAN-2 | **Given** the same booking, **When** Sunrise instead reports the installation failed at 10:00:00 giving the reason "customer premises locked", **Then** the task cancellation signal names the trigger as installation reported failed by CSP — not a decline — and carries that reason. | R3a · R3b · T1 · G3 | Settled |
+| AC-CAN-3 | **Given** booking 884213 assigned to Sunrise, who never accepts, **When** the P41 acceptance window expires, **Then** the task cancellation signal names the trigger as P41 timeout and the actor as a CSP-side timer, not the CSP — and carries **no** CSP reason, because no CSP gave one. | R3a · R3 MUST NOT (b) · T1 · G3 | Settled |
 | AC-CAN-4 | **Given** booking 884213 with Sunrise assigned, **When** Sunrise declines at 10:00:00.000 and CSP Bluewave is assigned at 10:00:00.180, **Then** the task cancellation signal was still sent — it is not suppressed by the replacement being found in the same moment. | R1a · R1 MUST NOT (a) · T1 · G1 | Settled |
-| AC-CAN-5 | **Given** booking 884213 where an attempt remains after the task cancellation, **When** the signal is sent, **Then** it states that further attempts will be made, and no closure signal is sent. | R3 · T2 · R2b | Settled |
-| AC-CAN-6 | **Given** booking 884213 assigned to Sunrise, who has accepted but not installed, **When** the P74 install window elapses, **Then** the task cancellation signal names the trigger as P74 timeout and the actor as a CSP-side timer. | R3 · T1 · G3 | Settled |
+| AC-CAN-5 | **Given** booking 884213 where an attempt remains after the task cancellation, **When** the signal is sent, **Then** it states that further attempts will be made, and no closure signal is sent. | R3a · T2 · R2b | Settled |
+| AC-CAN-6 | **Given** booking 884213 assigned to Sunrise, who has accepted but not installed, **When** the P74 install window elapses, **Then** the task cancellation signal names the trigger as P74 timeout, the actor as a CSP-side timer, and carries no CSP reason. | R3a · R3 MUST NOT (b) · T1 · G3 | Settled |
+| AC-CAN-7 | **Given** booking 884213, **When** Sunrise declines giving a reason of 300 characters that includes a line break, **Then** the signal carries that reason unaltered — not truncated, summarised or rewritten. | R3b · R3 MUST NOT (b) · G3 | Settled |
 
 ### TRM — Exhaustion closure signal (T3, T4)
 
@@ -237,14 +239,14 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-BV-1 | **Given** booking 884213 with exactly one attempt remaining, **When** the current CSP's task is cancelled, **Then** a task cancellation signal is sent stating further attempts will be made, and no closure signal is sent. | T2 · R3 · R2b | Settled |
+| AC-BV-1 | **Given** booking 884213 with exactly one attempt remaining, **When** the current CSP's task is cancelled, **Then** a task cancellation signal is sent stating further attempts will be made, and no closure signal is sent. | T2 · R3a · R2b | Settled |
 | AC-BV-2 | **Given** booking 884213 with no attempts remaining and no active task, **When** the current CSP's task is cancelled, **Then** both a task cancellation and an exhaustion closure are sent. | T3 · P1 · G2 | Settled |
 
 ### GRD — Guardrails
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-GRD-1 | **Given** any signal sent in August, **When** MQ-5 is run, **Then** every one carried its trigger, its actor, the outgoing CSP and further-attempts — none blank, none inferred. | G3 · R3 · MQ-5 | Settled |
+| AC-GRD-1 | **Given** any signal sent in August, **When** MQ-5 is run, **Then** every one carried its trigger, its actor, the outgoing CSP and further-attempts — none blank, none inferred — and every CSP-acted cancellation also carried the CSP's own reason. | G3 · R3a · R3b · MQ-5 | Settled |
 | AC-GRD-2 | **Given** every install task cancelled in August by any of the four triggers, **When** MQ-1 is run, **Then** each one has a matching task cancellation signal, and the split by trigger accounts for all of them. | G1 · G3 · MQ-1 | Settled |
 | AC-GRD-3 | **Given** the month before this shipped and the month after, **When** MQ-6 compares them, **Then** task cancellation rate, reallocation rate, attempts per booking, P75 closure rate and exhaustion rate are unchanged — the only difference is that the two new signals now go out. | G4 · R6 · MQ-6 | Settled |
 
@@ -257,11 +259,12 @@ Lifecycle of an **install journey** (created when a booking becomes a request fo
 | Task cancellation | **Canonical definition:** an assigned install task ending inside the CSP world without an installation, by one of exactly four triggers — declined by CSP, P41 timeout, installation reported failed by CSP, P74 timeout. Always the CSP world's own doing. Distinct from a customer cancelling their booking, which this document never calls a cancellation. All other mentions cite this definition. | Install Flow |
 | Customer booking cancellation | The customer choosing to cancel their booking. The customer backend originates it and tells the CSP world, so it needs no signal back. Out of scope in both directions (R1 MUST NOT (b), AC-REG-4). Named here only so it is never confused with a task cancellation. | Customer Backend |
 | CSP world | **Canonical definition:** every Wiom system that finds a CSP for a booking, assigns the work, and runs the installation. Everything on the Wiom side of the signal. | Install Flow |
-| Customer backend | The system that owns the customer's booking record and the customer app. It receives these signals and decides what the customer sees and whether money is refunded. Its behaviour is out of scope. | Customer Backend |
+| Customer backend | The system that owns the customer's booking record and the customer app. It receives these signals. What it does on receiving them is entirely its own and out of scope throughout this document. | Customer Backend |
 | Install journey | **Canonical definition:** one booking's path from "needs installing" to either installed or abandoned, across however many CSPs are tried. The entity whose lifecycle §3b governs. Not the same as one CSP's task — a journey can contain several. | Install Flow |
 | Task cancellation signal | A message saying the CSP currently assigned to this booking is no longer coming. Names which of the four triggers fired, who acted, which CSP, and whether the search continues. Sent on every task cancellation (G1). | — |
 | Exhaustion closure signal | A message saying no CSP will install this booking because every attempt is used up and nothing is active. New in this spec. Sent at most once per booking (R2b). | — |
 | P75 closure signal | The closure already sent today when CLOS moves the connection to DEACTIVATED on request expiry. Runs unchanged; listed so the closure picture is complete (T7, AC-REG-3). | Install Flow |
+| CSP-entered reason | What the CSP themselves said when they declined a task or reported an installation failed — passed through as given, never reworded. Exists only on those two triggers; a P41 or P74 timeout has none, because no one was asked (R3b). | Install Flow |
 | Assigned install task | A booking that has a named CSP committed to installing it. Cancelling one is what triggers a task cancellation signal. | Install Flow |
 | Attempts used up | The CSP world will not look again. Two separate limits can run out — the number of failed installs allowed, and the number of times the search may come back empty. Either running out means no attempt remains (R4). | Install Flow |
 | No install task active | No CSP anywhere is currently holding a live task for this booking. Both this and "attempts used up" must hold before an exhaustion closure is sent (R2 MUST NOT (b)). | Install Flow |
@@ -283,10 +286,11 @@ What the platform must be able to do for this feature to exist. Whether these ar
 |---|---|
 | Detect that an assigned install task has ended without an installation, from any of the four triggers, and emit a signal immediately naming which one fired. | T1 · R1 · G1 · G3 |
 | Tell a CSP-side task cancellation apart from a customer cancelling their own booking, and signal only the former. | T1 check · R1 MUST NOT (b) · AC-REG-4 |
-| State, at the moment of a task cancellation, whether the CSP world will try again. | T2 · T3 · R3 · G3 |
+| State, at the moment of a task cancellation, whether the CSP world will try again. | T2 · T3 · R3a · G3 |
 | Detect that every attempt to find a CSP is used up **and** no install task is active — across both exhaustion limits — and emit a closure immediately. | T3 · T4 · R2a · R4 · G2 |
 | Emit a closure at most once per booking, keyed on the booking's customer id, counting the existing P75 closure against the same limit. | T5 · T7 · R2b · AC-DUP-1 |
-| Carry the trigger, the actor, the outgoing CSP and further-attempts on every signal. | R3 · G3 · MQ-5 |
+| Carry the trigger, the actor, the outgoing CSP and further-attempts on every signal. | R3a · G3 · MQ-5 |
+| Capture the reason a CSP gives when declining or reporting an installation failed, and pass it through unaltered — while sending none on a timeout. | R3b · G3 · MQ-5 · MQ-7 |
 | Emit all of the above without altering, delaying or blocking any existing cancellation, reallocation, P75 closure or timing behaviour — including when a send fails. | R6 · G4 · T6 · T7 |
 | Count task cancellations by trigger, closures of both kinds, and fallback-resolved bookings; detect a duplicate closure; and compare rates and attempt counts before and after launch. | MQ-1 · MQ-2 · MQ-3 · MQ-5 · MQ-6 |
 
