@@ -141,13 +141,19 @@
   <p class="lede">Task cancellation and closure signals from the CSP world to the customer backend, so a customer waiting for an installation always knows whether it is still coming.</p>
   <div class="meta-row">
     <div><strong>Owner</strong> &middot; Ashish Raj (PM)</div>
+    <div><strong>Reviewer</strong> &middot; TBD <span class="tier guard">AI generated</span></div>
     <div><strong>Version</strong> &middot; v0.2 &middot; 27 Jul 2026</div>
     <div><strong>Status</strong> &middot; Draft</div>
     <div><strong>Sign-off</strong> &middot; Pending</div>
   </div>
+  <div class="meta-row">
+    <div><strong>Consulted &mdash; Customer Backend</strong> &middot; TBD <span class="tier guard">AI generated</span></div>
+    <div><strong>Consulted &mdash; Install Flow</strong> &middot; TBD <span class="tier guard">AI generated</span></div>
+    <div><strong>Consulted &mdash; Allocation</strong> &middot; TBD <span class="tier guard">AI generated</span></div>
+  </div>
   <div class="convention">
-    <strong>Reading contract.</strong> &sect;3b is canon &mdash; if any statement disagrees with it, &sect;3b wins, except dispatch order, which the &sect;3a chart and its precedence rules own. Every fact has one home; every other mention is an ID reference. Every number outside &sect;5 is a C-id. This document states <em>what and why</em>; decomposition, schema, storage, retries and instrumentation belong to the implementer.
-    <span class="badge req">Draft</span> Reviewer and consulted names are open. Eleven items are marked <span class="tier guard">AI generated</span> and need the PM's decision before sign-off.
+    <strong>Reading contract.</strong> &sect;3b is canon &mdash; if any statement disagrees with it, &sect;3b wins, except dispatch order, which the &sect;3a chart and its precedence rules own. Every fact has one home; every other mention is an ID reference. Every number outside &sect;5 is a C-id. Failure behaviour is an envelope: the customer-facing outcome guaranteed by a C-id window's expiry, independent of how recovery is attempted inside it. This document states <em>what and why</em>; decomposition, schema, storage, retries and instrumentation belong to the implementer.
+    <span class="badge req">Draft</span> Reviewer and consulted names are open. Seven items are marked for review and need the PM's decision before sign-off &mdash; see the review section at the end.
   </div>
 </header>
 
@@ -155,12 +161,12 @@
   <h2>At a glance</h2>
   <div class="qc-tag">Two new signals. One existing behaviour confirmed and protected by regression.</div>
   <dl>
-    <dt>Problem</dt><dd>When an install task is cancelled or the CSP world gives up, the customer backend is told nothing. It finds out only when its own 14-day timer fires.</dd>
+    <dt>Problem</dt><dd>When an install task is cancelled or the CSP world gives up, the customer backend is told nothing. It finds out only when its own fallback timer (C-02) fires.</dd>
     <dt>Signal 1</dt><dd><strong>Task cancellation</strong> &mdash; sent every time an assigned install task is cancelled inside the CSP world, even when a replacement partner is found in the same instant.</dd>
     <dt>Signal 2</dt><dd><strong>Closure</strong> &mdash; sent once per booking when the CSP world permanently stops trying. Covers both stopping paths: partners tried and failed, and no partner findable.</dd>
     <dt>Read this first</dt><dd>&ldquo;Cancellation&rdquo; here always means an <strong>install task</strong> being cancelled by the CSP world &mdash; never a customer cancelling their booking. That is a different event travelling the other way, and it is out of scope (&sect;8).</dd>
     <dt>Not in scope</dt><dd>Technician reassignment already re-sends the technician's details on every change. No work needed &mdash; protected by AC-REG-2.</dd>
-    <dt>Delivery</dt><dd>Best effort, matching the existing signals on this channel. The customer backend's 14-day timer therefore stays as the required backstop (G4).</dd>
+    <dt>Delivery</dt><dd>Best effort, matching the existing signals on this channel. The customer backend's fallback timer (C-02) therefore stays as the required backstop (G4).</dd>
     <dt>Owned elsewhere</dt><dd>What the customer backend does with either signal &mdash; refunds, messages, app screens &mdash; is the customer team's, specified separately.</dd>
   </dl>
 </div>
@@ -192,7 +198,7 @@
     <tr><th>ID</th><th>Guardrail</th><th>One line</th><th>Anchors</th></tr>
     <tr><td>G1</td><td><strong>Every task cancellation speaks</strong></td><td>Every task cancellation on a live booking sends a signal, whether or not a replacement partner is found. Once a booking is closed, nothing further is sent (P2). A customer cancelling their own booking is not a task cancellation and sends nothing (R1 MUST NOT (b)).</td><td>R1a &middot; AC-CAN-1 &middot; AC-CAN-4 &middot; MQ-1</td></tr>
     <tr><td>G2</td><td><strong>One closure only</strong></td><td>A booking never receives more than one closure signal.</td><td>R2b &middot; AC-DUP-1 &middot; MQ-3</td></tr>
-    <tr><td>G3</td><td><strong>No silent giving up</strong></td><td>Every way the CSP world can permanently stop trying sends a closure signal.</td><td>R4 &middot; AC-TRM-3 &middot; MQ-2</td></tr>
+    <tr><td>G3</td><td><strong>No silent giving up</strong></td><td>Every way the CSP world can permanently stop trying sends a closure signal &mdash; whichever way happens first. A booking already closed sends nothing further (P2, G2).</td><td>R4 &middot; AC-TRM-3 &middot; MQ-2</td></tr>
     <tr><td>G4</td><td><strong>The fallback stays</strong></td><td>The customer backend's existing 14-day timer (C-02) remains in place as the backstop for a lost signal.</td><td>R5 &middot; AC-FAIL-1 &middot; MQ-2</td></tr>
     <tr><td>G5</td><td><strong>Always attributed</strong></td><td>Every signal says who caused it and why, without the reader having to infer it.</td><td>R3 &middot; AC-GRD-1 &middot; MQ-5</td></tr>
   </table>
@@ -215,7 +221,7 @@
   <table>
     <tr><th>ID</th><th>Story</th><th>MUST</th><th>MUST NOT</th></tr>
     <tr><td>R1</td><td>As a customer whose assigned partner is no longer coming, I want that fact sent to the customer backend, so my booking status stops showing someone who will not arrive.</td><td><strong>(a)</strong> Send a task cancellation signal every time an assigned install task is cancelled &mdash; by partner choice or by a CSP-side timeout. <strong>(b)</strong> Send it within C-01 of the task cancellation.</td><td><strong>(a)</strong> Hold back or merge the signal because a replacement partner was found in the same moment. <strong>(b)</strong> Send a task cancellation signal when the customer cancelled their own booking &mdash; that event travels the other way.</td></tr>
-    <tr><td>R2</td><td>As a customer whose booking can no longer be installed, I want the customer backend told for certain, so it can close the booking and start a refund.</td><td><strong>(a)</strong> Send a closure signal when the CSP world permanently stops trying, within C-01. <strong>(b)</strong> Send at most one closure signal per booking, keyed on the booking's customer id.</td><td><strong>(a)</strong> Leave the customer backend to work this out from the 14-day timer. <strong>(b)</strong> Send a closure signal while further attempts are still possible.</td></tr>
+    <tr><td>R2</td><td>As a customer whose booking can no longer be installed, I want the customer backend told for certain, so it can close the booking and start a refund.</td><td><strong>(a)</strong> Send a closure signal when the CSP world permanently stops trying, within C-01. <strong>(b)</strong> Send at most one closure signal per booking, keyed on the booking's customer id.</td><td><strong>(a)</strong> Leave the customer backend to work this out from its fallback timer (C-02). <strong>(b)</strong> Send a closure signal while further attempts are still possible.</td></tr>
     <tr><td>R3</td><td>As the customer backend, I need to tell these cases apart without guessing, so I can act differently on each.</td><td>Carry on every signal: who acted (the partner, or a CSP-side timeout); the cause; which partner the task was taken from; and whether further attempts will be made.</td><td>Require the reader to infer any of these from timing, ordering, or the absence of a later signal.</td></tr>
     <tr><td>R4</td><td>As a customer, I want the same answer whichever way the CSP world ran out of options, so no dead booking stays silent.</td><td>Send a closure signal on <strong>every</strong> path where the CSP world permanently stops trying &mdash; both when partners tried and failed, and when no partner could be found at all.</td><td>Cover only the common path and leave the others silent.</td></tr>
     <tr><td>R5</td><td>As the business, I want a backstop, because these signals can be lost in transit.</td><td>Keep the customer backend's 14-day timer (C-02) running as the fallback.</td><td>Treat the timer as the primary path, or remove it once these signals ship.</td></tr>
@@ -446,6 +452,8 @@ flowchart TD
     <tr><td>Numbers outside &sect;5 appear as C-ids</td><td>&sect;1 Boundary and &sect;8 name the 14-day fallback in words alongside C-02</td><td>The fallback is owned outside this spec; naming it aids the reader</td><td>Ashish Raj, 27 Jul 2026</td></tr>
     <tr><td>L11 &mdash; every &sect;3b row reachable in the &sect;3a chart</td><td>T6 (signal send fails) has no chart node</td><td>T6 is a failure envelope, not a dispatch route. Putting it in the chart would imply it is a routing decision. Template v3's own worked example follows the same pattern</td><td>Ashish Raj, 27 Jul 2026</td></tr>
     <tr><td>AC group prefix should match its subject</td><td>The task cancellation group keeps the prefix <code>CAN</code></td><td>Renaming would change every AC id in the group and every citation of them across &sect;1, &sect;3b, &sect;7 and &sect;9 &mdash; churn with no reader benefit. The group heading carries the full name</td><td>Ashish Raj, 27 Jul 2026</td></tr>
+    <tr><td>Template v3 says delete every 📋 guidance block</td><td>The <strong>Reading contract</strong> is kept, restated as document content above &sect;1</td><td>It states load-bearing rules &mdash; &sect;3b is canon, one home per fact, failure as an envelope. Cross-pod readers who do not know Template v3 cannot interpret the document without them</td><td>Ashish Raj, 27 Jul 2026</td></tr>
+    <tr><td>Template v3 has no summary section</td><td>An <strong>At a glance</strong> block sits between the header and &sect;1</td><td>Readers outside the install pod need the shape of the change before the rules. It restates &sect;1/&sect;2 only and adds no obligation, so &sect;1 remains the objective's one home</td><td>Ashish Raj, 27 Jul 2026</td></tr>
   </table>
 
   <div class="note" style="margin-top:24px; padding:14px; background:var(--bg); border-left:3px solid var(--ink); font-size:13px;">
